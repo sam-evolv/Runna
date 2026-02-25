@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography, Mono } from '@/components/ui/Typography';
@@ -9,7 +9,9 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { PaceZoneIndicator } from '@/components/workout/PaceZoneIndicator';
 import { useWorkout } from '@/hooks/useWorkout';
 import { useLocation } from '@/hooks/useLocation';
-import { colors, spacing } from '@/constants/theme';
+import { audioCoaching } from '@/services/audioCoaching';
+import { getZoneForHR, type ZoneConfig } from '@/services/heartRateZones';
+import { colors, spacing, borderRadius } from '@/constants/theme';
 import { formatPace, formatDuration } from '@/utils/paceCalculator';
 import { formatDistance } from '@/utils/formatters';
 import type { RunningWorkoutData } from '@/types/workout';
@@ -28,11 +30,28 @@ export default function RunActiveScreen() {
 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [audioCuesEnabled, setAudioCuesEnabled] = useState(true);
+  const [currentHR, setCurrentHR] = useState<number | null>(null);
+  const [hrZoneConfig, setHRZoneConfig] = useState<ZoneConfig | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevSegmentRef = useRef(0);
 
   const runData = activeWorkout?.workout_data as RunningWorkoutData | undefined;
-  const currentSegment = runData?.segments[activeRun?.currentSegmentIndex ?? 0];
+  const currentSegmentIndex = activeRun?.currentSegmentIndex ?? 0;
+  const currentSegment = runData?.segments[currentSegmentIndex];
   const totalSegments = runData?.segments.length ?? 0;
+
+  // Initialize audio coaching
+  useEffect(() => {
+    audioCoaching.initialize({ enabled: audioCuesEnabled });
+    return () => {
+      audioCoaching.reset();
+    };
+  }, []);
+
+  useEffect(() => {
+    audioCoaching.updateConfig({ enabled: audioCuesEnabled });
+  }, [audioCuesEnabled]);
 
   useEffect(() => {
     startTracking();
@@ -43,6 +62,21 @@ export default function RunActiveScreen() {
     };
   }, []);
 
+  // Announce segment transitions
+  useEffect(() => {
+    if (currentSegment && currentSegmentIndex !== prevSegmentRef.current) {
+      audioCoaching.announceSegmentStart(currentSegment, currentSegmentIndex, totalSegments);
+      prevSegmentRef.current = currentSegmentIndex;
+    }
+  }, [currentSegmentIndex, currentSegment, totalSegments]);
+
+  // Announce first segment on start
+  useEffect(() => {
+    if (currentSegment && prevSegmentRef.current === 0 && elapsedSeconds === 1) {
+      audioCoaching.announceSegmentStart(currentSegment, 0, totalSegments);
+    }
+  }, [elapsedSeconds, currentSegment, totalSegments]);
+
   useEffect(() => {
     if (totalDistance > 0) {
       updateRunProgress({
@@ -51,6 +85,15 @@ export default function RunActiveScreen() {
       });
     }
   }, [totalDistance]);
+
+  // Audio pace & distance checks every second
+  useEffect(() => {
+    if (currentSegment && totalDistance > 0 && !isPaused) {
+      const currentPace = elapsedSeconds > 0 ? (elapsedSeconds / 60) / totalDistance : 0;
+      audioCoaching.checkPace(currentPace, currentSegment.target_pace_min_km, elapsedSeconds);
+      audioCoaching.checkDistance(totalDistance, runData?.total_distance_km ?? 0);
+    }
+  }, [elapsedSeconds]);
 
   const startTimer = () => {
     timerRef.current = setInterval(() => {
@@ -76,6 +119,7 @@ export default function RunActiveScreen() {
         onPress: async () => {
           stopTracking();
           if (timerRef.current) clearInterval(timerRef.current);
+          audioCoaching.announceWorkoutComplete(elapsedSeconds, totalDistance);
           updateRunProgress({ elapsedSeconds, isRunning: false });
           await finishRun();
           router.replace('/(tabs)/today');
@@ -111,13 +155,24 @@ export default function RunActiveScreen() {
   }
 
   const currentPace = totalDistance > 0 ? (elapsedSeconds / 60) / totalDistance : 0;
-  const segmentProgress = currentSegment
-    ? Math.min(totalDistance / (runData.segments.slice(0, (activeRun?.currentSegmentIndex ?? 0) + 1).reduce((s, seg) => s + seg.distance_km, 0)), 1)
-    : 0;
-  const totalProgress = totalDistance / runData.total_distance_km;
+  const totalProgress = runData.total_distance_km > 0 ? totalDistance / runData.total_distance_km : 0;
+  const currentZone = currentHR && hrZoneConfig ? getZoneForHR(currentHR, hrZoneConfig) : null;
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Audio cue toggle */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={() => setAudioCuesEnabled(!audioCuesEnabled)}
+          activeOpacity={0.7}
+          style={[styles.audioToggle, !audioCuesEnabled && styles.audioToggleOff]}
+        >
+          <Typography variant="caption2" color={audioCuesEnabled ? colors.primary : colors.textTertiary}>
+            {audioCuesEnabled ? '🔊 Audio On' : '🔇 Audio Off'}
+          </Typography>
+        </TouchableOpacity>
+      </View>
+
       {/* Current Segment */}
       {currentSegment && (
         <View style={styles.segmentHeader}>
@@ -131,7 +186,7 @@ export default function RunActiveScreen() {
             {currentSegment.description}
           </Typography>
           <Typography variant="footnote" color={colors.textTertiary}>
-            Segment {(activeRun?.currentSegmentIndex ?? 0) + 1} of {totalSegments}
+            Segment {currentSegmentIndex + 1} of {totalSegments}
           </Typography>
         </View>
       )}
@@ -165,6 +220,19 @@ export default function RunActiveScreen() {
             </Typography>
           </View>
         </View>
+
+        {/* HR Zone overlay */}
+        {currentZone && (
+          <View style={[styles.hrZoneBanner, { backgroundColor: `${currentZone.color}20` }]}>
+            <View style={[styles.hrZoneDot, { backgroundColor: currentZone.color }]} />
+            <Typography variant="caption1" color={currentZone.color} style={{ fontWeight: '600' }}>
+              Zone {currentZone.zone} — {currentZone.name}
+            </Typography>
+            <Typography variant="caption1" color={colors.textSecondary} style={{ marginLeft: 'auto' }}>
+              {currentHR} bpm
+            </Typography>
+          </View>
+        )}
 
         {/* Target pace */}
         {currentSegment && (
@@ -215,9 +283,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
   },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingTop: spacing.sm,
+  },
+  audioToggle: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: `${colors.primary}15`,
+  },
+  audioToggleOff: {
+    backgroundColor: colors.surface,
+  },
   segmentHeader: {
     alignItems: 'center',
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
   },
   metrics: {
@@ -238,6 +320,20 @@ const styles = StyleSheet.create({
   },
   metricBox: {
     alignItems: 'center',
+  },
+  hrZoneBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  hrZoneDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   paceIndicator: {
     marginTop: spacing.xxl,

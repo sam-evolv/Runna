@@ -1,19 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Switch } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { IntervalDisplay } from '@/components/workout/IntervalDisplay';
 import { PlateCalculator } from '@/components/workout/PlateCalculator';
 import { useWorkout } from '@/hooks/useWorkout';
 import { usePlanStore } from '@/stores/planStore';
 import { supabase } from '@/services/api';
-import { colors, spacing, workoutTypeColors } from '@/constants/theme';
+import { generateBriefing, type WorkoutBriefing } from '@/services/workoutBriefing';
+import { convertToTreadmill, getTreadmillInstructions, formatTreadmillSpeed, type TreadmillWorkout } from '@/services/treadmillMode';
+import { colors, spacing, borderRadius, workoutTypeColors } from '@/constants/theme';
 import { formatWorkoutType, formatWorkoutDuration, formatDistance, formatPaceWithUnit } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateUtils';
+import { formatPace } from '@/utils/paceCalculator';
 import { isRunningWorkout, isStrengthWorkout } from '@/types/workout';
 import type { Workout, RunningWorkoutData, StrengthWorkoutData } from '@/types/workout';
 
@@ -24,10 +28,28 @@ export default function WorkoutDetailScreen() {
   const { skipWorkout } = usePlanStore();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
+  const [briefing, setBriefing] = useState<WorkoutBriefing | null>(null);
+  const [briefingExpanded, setBriefingExpanded] = useState(false);
+  const [treadmillEnabled, setTreadmillEnabled] = useState(false);
+  const [treadmillData, setTreadmillData] = useState<TreadmillWorkout | null>(null);
 
   useEffect(() => {
     loadWorkout();
   }, [id]);
+
+  useEffect(() => {
+    if (workout) {
+      setBriefing(generateBriefing(workout));
+    }
+  }, [workout]);
+
+  useEffect(() => {
+    if (workout && treadmillEnabled && isRunningWorkout(workout.workout_data)) {
+      setTreadmillData(convertToTreadmill(workout.workout_data as RunningWorkoutData));
+    } else {
+      setTreadmillData(null);
+    }
+  }, [workout, treadmillEnabled]);
 
   const loadWorkout = async () => {
     const { data } = await supabase
@@ -119,8 +141,147 @@ export default function WorkoutDetailScreen() {
           </Typography>
         )}
 
-        {/* Running segments */}
+        {/* Workout Briefing */}
+        {briefing && (
+          <Card style={styles.briefingCard}>
+            <TouchableOpacity
+              onPress={() => setBriefingExpanded(!briefingExpanded)}
+              activeOpacity={0.7}
+              style={styles.briefingHeader}
+            >
+              <View style={styles.briefingTitleRow}>
+                <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '600' }}>
+                  SESSION BRIEFING
+                </Typography>
+                <Typography variant="caption2" color={colors.textTertiary}>
+                  {briefingExpanded ? '▲' : '▼'}
+                </Typography>
+              </View>
+              <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>
+                {briefing.purpose.length > 100 && !briefingExpanded
+                  ? briefing.purpose.slice(0, 100) + '...'
+                  : briefing.purpose}
+              </Typography>
+            </TouchableOpacity>
+
+            {briefingExpanded && (
+              <View style={styles.briefingBody}>
+                {/* Key Tips */}
+                <View style={styles.briefingSection}>
+                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
+                    KEY TIPS
+                  </Typography>
+                  {briefing.keyTips.map((tip, i) => (
+                    <View key={i} style={styles.tipRow}>
+                      <View style={styles.tipDot} />
+                      <Typography variant="footnote" color={colors.textSecondary}>
+                        {tip}
+                      </Typography>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Nutrition */}
+                <View style={styles.briefingSection}>
+                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
+                    NUTRITION
+                  </Typography>
+                  <Typography variant="footnote" color={colors.textSecondary}>
+                    {briefing.nutrition}
+                  </Typography>
+                </View>
+
+                {/* Warm-up */}
+                <View style={styles.briefingSection}>
+                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
+                    WARM-UP
+                  </Typography>
+                  <Typography variant="footnote" color={colors.textSecondary}>
+                    {briefing.warmupAdvice}
+                  </Typography>
+                </View>
+
+                {/* Mental Cue */}
+                <Card style={styles.mentalCueCard}>
+                  <Typography variant="footnote" color={colors.primary} style={{ fontWeight: '600', fontStyle: 'italic' }}>
+                    "{briefing.mentalCue}"
+                  </Typography>
+                </Card>
+              </View>
+            )}
+          </Card>
+        )}
+
+        {/* Treadmill toggle for running workouts */}
         {isRun && (
+          <View style={styles.treadmillToggle}>
+            <View style={styles.treadmillLabel}>
+              <Typography variant="callout" style={{ fontWeight: '500' }}>
+                🏃 Treadmill Mode
+              </Typography>
+              <Typography variant="caption2" color={colors.textTertiary}>
+                Show speed & incline instead of pace
+              </Typography>
+            </View>
+            <Switch
+              value={treadmillEnabled}
+              onValueChange={setTreadmillEnabled}
+              trackColor={{ false: colors.surfaceLight, true: `${colors.primary}60` }}
+              thumbColor={treadmillEnabled ? colors.primary : colors.surfaceElevated}
+            />
+          </View>
+        )}
+
+        {/* Treadmill segments view */}
+        {treadmillData && (
+          <View style={styles.section}>
+            <Typography variant="headline" style={styles.sectionTitle}>
+              Treadmill Instructions
+            </Typography>
+            {treadmillData.segments.map((seg, i) => (
+              <Card key={i} style={styles.treadmillSegCard}>
+                <View style={styles.treadmillSegRow}>
+                  <Badge
+                    label={seg.type.toUpperCase()}
+                    color={workoutColor}
+                    backgroundColor={`${workoutColor}15`}
+                  />
+                  <Typography variant="caption2" color={colors.textTertiary}>
+                    {Math.round(seg.durationMinutes)} min
+                  </Typography>
+                </View>
+                <View style={styles.treadmillMetrics}>
+                  <View style={styles.treadmillMetric}>
+                    <Typography variant="headline" color={colors.textPrimary}>
+                      {formatTreadmillSpeed(seg.speedKmh)}
+                    </Typography>
+                    <Typography variant="caption2" color={colors.textTertiary}>SPEED</Typography>
+                  </View>
+                  <View style={styles.treadmillDivider} />
+                  <View style={styles.treadmillMetric}>
+                    <Typography variant="headline" color={colors.textPrimary}>
+                      {seg.inclinePercent}%
+                    </Typography>
+                    <Typography variant="caption2" color={colors.textTertiary}>INCLINE</Typography>
+                  </View>
+                  <View style={styles.treadmillDivider} />
+                  <View style={styles.treadmillMetric}>
+                    <Typography variant="headline" color={colors.textTertiary}>
+                      {formatPace(seg.originalPaceMinKm)}/km
+                    </Typography>
+                    <Typography variant="caption2" color={colors.textTertiary}>PACE</Typography>
+                  </View>
+                </View>
+                <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: spacing.sm }}>
+                  {seg.description}
+                </Typography>
+              </Card>
+            ))}
+          </View>
+        )}
+
+        {/* Running segments (when not in treadmill mode) */}
+        {isRun && !treadmillData && (
           <View style={styles.section}>
             <Typography variant="headline" style={styles.sectionTitle}>Workout Structure</Typography>
             <IntervalDisplay segments={(workout.workout_data as RunningWorkoutData).segments} />
@@ -234,6 +395,87 @@ const styles = StyleSheet.create({
   description: {
     marginTop: spacing.md,
   },
+  // Briefing
+  briefingCard: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  briefingHeader: {
+    // touchable area
+  },
+  briefingTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  briefingBody: {
+    marginTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  briefingSection: {
+    marginBottom: spacing.md,
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  tipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.primary,
+    marginTop: 6,
+  },
+  mentalCueCard: {
+    backgroundColor: `${colors.primary}10`,
+    borderWidth: 1,
+    borderColor: `${colors.primary}20`,
+    marginTop: spacing.sm,
+  },
+  // Treadmill
+  treadmillToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  treadmillLabel: {
+    flex: 1,
+  },
+  treadmillSegCard: {
+    marginBottom: spacing.sm,
+  },
+  treadmillSegRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  treadmillMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  treadmillMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  treadmillDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  // Existing
   section: {
     marginTop: spacing.xxl,
   },
