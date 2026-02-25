@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Pulse",
+    "slug": "pulse-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "pulse",
+    "splash": {
+      "backgroundColor": "#0A0A0A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pulse.fitness",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Pulse uses your location to track runs and map routes.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Pulse uses your location to track runs in the background.",
+        "NSHealthShareUsageDescription": "Pulse reads your health data to track workout progress.",
+        "NSHealthUpdateUsageDescription": "Pulse saves workouts and activity data to Apple Health.",
+        "NSMotionUsageDescription": "Pulse uses motion data for workout tracking."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.pulse.fitness",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-location"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

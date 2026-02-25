@@ -1,0 +1,276 @@
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Typography } from '@/components/ui/Typography';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { IntervalDisplay } from '@/components/workout/IntervalDisplay';
+import { PlateCalculator } from '@/components/workout/PlateCalculator';
+import { useWorkout } from '@/hooks/useWorkout';
+import { usePlanStore } from '@/stores/planStore';
+import { supabase } from '@/services/api';
+import { colors, spacing, workoutTypeColors } from '@/constants/theme';
+import { formatWorkoutType, formatWorkoutDuration, formatDistance, formatPaceWithUnit } from '@/utils/formatters';
+import { formatDate } from '@/utils/dateUtils';
+import { isRunningWorkout, isStrengthWorkout } from '@/types/workout';
+import type { Workout, RunningWorkoutData, StrengthWorkoutData } from '@/types/workout';
+
+export default function WorkoutDetailScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { startWorkout } = useWorkout();
+  const { skipWorkout } = usePlanStore();
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadWorkout();
+  }, [id]);
+
+  const loadWorkout = async () => {
+    const { data } = await supabase
+      .from('workouts')
+      .select('*')
+      .eq('id', id)
+      .single();
+    setWorkout(data);
+    setLoading(false);
+  };
+
+  if (loading || !workout) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loading}>
+          <Typography variant="body" color={colors.textSecondary}>Loading...</Typography>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const workoutColor = workoutTypeColors[workout.workout_type] || colors.primary;
+  const isRun = isRunningWorkout(workout.workout_data);
+  const isStrength = isStrengthWorkout(workout.workout_data);
+
+  const handleStart = () => {
+    startWorkout(workout);
+    if (isRun) {
+      router.push('/workout/run-active');
+    } else {
+      router.push('/workout/active');
+    }
+  };
+
+  const handleSkip = () => {
+    Alert.alert('Skip Workout', 'Are you sure you want to skip this workout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Skip',
+        style: 'destructive',
+        onPress: () => {
+          skipWorkout(workout.id);
+          router.back();
+        },
+      },
+    ]);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Button title="Close" onPress={() => router.back()} variant="ghost" size="sm" />
+        </View>
+
+        <Badge
+          label={formatWorkoutType(workout.workout_type)}
+          color={workoutColor}
+          backgroundColor={`${workoutColor}20`}
+          size="md"
+        />
+
+        <Typography variant="largeTitle" style={styles.title}>
+          {workout.title}
+        </Typography>
+
+        <View style={styles.metaRow}>
+          <Typography variant="callout" color={colors.textSecondary}>
+            {formatDate(workout.scheduled_date)}
+          </Typography>
+          <Typography variant="callout" color={colors.textTertiary}> · </Typography>
+          <Typography variant="callout" color={colors.textSecondary}>
+            {formatWorkoutDuration(workout.estimated_duration_minutes)}
+          </Typography>
+          {isRun && (
+            <>
+              <Typography variant="callout" color={colors.textTertiary}> · </Typography>
+              <Typography variant="callout" color={colors.textSecondary}>
+                {formatDistance((workout.workout_data as RunningWorkoutData).total_distance_km)}
+              </Typography>
+            </>
+          )}
+        </View>
+
+        {workout.description && (
+          <Typography variant="body" color={colors.textSecondary} style={styles.description}>
+            {workout.description}
+          </Typography>
+        )}
+
+        {/* Running segments */}
+        {isRun && (
+          <View style={styles.section}>
+            <Typography variant="headline" style={styles.sectionTitle}>Workout Structure</Typography>
+            <IntervalDisplay segments={(workout.workout_data as RunningWorkoutData).segments} />
+          </View>
+        )}
+
+        {/* Strength exercises */}
+        {isStrength && (
+          <View style={styles.section}>
+            <Typography variant="headline" style={styles.sectionTitle}>Exercises</Typography>
+            {(workout.workout_data as StrengthWorkoutData).exercises.map((exercise, idx) => (
+              <Card key={idx} style={styles.exerciseCard}>
+                <Typography variant="headline">{exercise.name}</Typography>
+                {exercise.notes && (
+                  <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: 2 }}>
+                    {exercise.notes}
+                  </Typography>
+                )}
+                <View style={styles.setsList}>
+                  {exercise.sets.map((set, setIdx) => (
+                    <View key={setIdx} style={styles.setRow}>
+                      <Typography variant="callout" color={colors.textTertiary} style={styles.setNum}>
+                        {set.set_number}
+                      </Typography>
+                      <Typography variant="callout">
+                        {set.reps} reps
+                      </Typography>
+                      {set.weight_kg !== null && (
+                        <Typography variant="callout" color={colors.primary}>
+                          {set.weight_kg} kg
+                        </Typography>
+                      )}
+                      <Typography variant="caption1" color={colors.textTertiary}>
+                        {set.rest_seconds}s rest
+                      </Typography>
+                    </View>
+                  ))}
+                </View>
+                {exercise.sets[0]?.weight_kg && (
+                  <PlateCalculator targetWeight={exercise.sets[0].weight_kg} />
+                )}
+              </Card>
+            ))}
+          </View>
+        )}
+
+        {/* Notes */}
+        {(isRun ? (workout.workout_data as RunningWorkoutData).notes : (workout.workout_data as StrengthWorkoutData).notes) && (
+          <Card style={styles.notesCard}>
+            <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: 4 }}>
+              COACH NOTES
+            </Typography>
+            <Typography variant="callout" color={colors.textSecondary}>
+              {isRun
+                ? (workout.workout_data as RunningWorkoutData).notes
+                : (workout.workout_data as StrengthWorkoutData).notes}
+            </Typography>
+          </Card>
+        )}
+      </ScrollView>
+
+      {/* Action buttons */}
+      {workout.status === 'scheduled' && (
+        <View style={styles.actions}>
+          <Button
+            title="Start Workout"
+            onPress={handleStart}
+            size="lg"
+            fullWidth
+          />
+          <Button
+            title="Skip"
+            onPress={handleSkip}
+            variant="ghost"
+            size="sm"
+            fullWidth
+            style={{ marginTop: spacing.sm }}
+          />
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 120,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingVertical: spacing.sm,
+  },
+  title: {
+    marginTop: spacing.md,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    marginTop: spacing.sm,
+  },
+  description: {
+    marginTop: spacing.md,
+  },
+  section: {
+    marginTop: spacing.xxl,
+  },
+  sectionTitle: {
+    marginBottom: spacing.md,
+  },
+  exerciseCard: {
+    marginBottom: spacing.sm,
+  },
+  setsList: {
+    marginTop: spacing.md,
+  },
+  setRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  setNum: {
+    width: 24,
+  },
+  notesCard: {
+    marginTop: spacing.xxl,
+    backgroundColor: colors.surfaceLight,
+  },
+  actions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xxxl,
+    paddingTop: spacing.md,
+    backgroundColor: colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+});
