@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   ActivityIndicator,
@@ -75,7 +76,7 @@ export function Button({
   }, []);
 
   const handlePress = useCallback(() => {
-    if (haptic) {
+    if (haptic && Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     onPress();
