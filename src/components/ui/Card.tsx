@@ -1,12 +1,12 @@
 import React from 'react';
-import { Platform, View, StyleSheet, ViewStyle, Pressable } from 'react-native';
+import { View, StyleSheet, ViewStyle, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInDown,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { colors, spacing, borderRadius, glass, animation } from '@/constants/theme';
 
 interface CardProps {
@@ -41,9 +41,7 @@ export function Card({ children, onPress, style, variant = 'default', animate = 
 
   const handlePress = () => {
     if (onPress) {
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onPress();
     }
   };

@@ -1,6 +1,5 @@
 import React, { useCallback } from 'react';
 import {
-  Platform,
   Pressable,
   StyleSheet,
   ActivityIndicator,
@@ -11,7 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/utils/haptics';
 import { Typography } from './Typography';
 import { colors, spacing, borderRadius, shadows, animation } from '@/constants/theme';
 
@@ -76,7 +75,7 @@ export function Button({
   }, []);
 
   const handlePress = useCallback(() => {
-    if (haptic && Platform.OS !== 'web') {
+    if (haptic) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     onPress();
