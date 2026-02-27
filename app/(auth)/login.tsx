@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, shadows, withOpacity } from '@/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -19,6 +21,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setError('');
     if (!email || !password) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setError('Please fill in all fields');
       return;
     }
@@ -28,6 +31,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (result.error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(result.error);
     } else {
       router.replace('/');
@@ -40,15 +44,49 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Typography variant="largeTitle" style={styles.title}>
-            Welcome Back
-          </Typography>
-          <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
-            Sign in to continue your training
-          </Typography>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Animated.View entering={FadeIn.duration(800).delay(200)}>
+              <Typography
+                variant="caption1"
+                color={colors.primary}
+                style={styles.brandLabel}
+              >
+                PULSE
+              </Typography>
+            </Animated.View>
 
-          <View style={styles.form}>
+            <Animated.View entering={FadeInUp.duration(600).delay(350)}>
+              <Typography
+                variant="largeTitle"
+                color={colors.textPrimary}
+                style={styles.title}
+              >
+                Welcome Back
+              </Typography>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.duration(600).delay(500)}>
+              <Typography
+                variant="body"
+                color={colors.textSecondary}
+                style={styles.subtitle}
+              >
+                Sign in to continue your training
+              </Typography>
+            </Animated.View>
+          </View>
+
+          {/* Form */}
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(650)}
+            style={styles.formCard}
+          >
             <Input
               label="Email"
               placeholder="you@example.com"
@@ -66,31 +104,45 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry
               autoComplete="current-password"
-              containerStyle={styles.input}
+              containerStyle={styles.inputLast}
             />
+          </Animated.View>
 
-            {error ? (
-              <Typography variant="footnote" color={colors.error} style={styles.error}>
-                {error}
-              </Typography>
-            ) : null}
-          </View>
+          {/* Error */}
+          {error ? (
+            <Animated.View
+              entering={FadeInUp.duration(300)}
+              style={styles.errorCard}
+            >
+              <View style={styles.errorIconRow}>
+                <Typography variant="footnote" color={colors.error}>
+                  {error}
+                </Typography>
+              </View>
+            </Animated.View>
+          ) : null}
 
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            loading={loading}
-            size="lg"
-            fullWidth
-          />
-          <Button
-            title="Don't have an account? Sign up"
-            onPress={() => router.push('/(auth)/register')}
-            variant="ghost"
-            size="md"
-            fullWidth
-            style={{ marginTop: spacing.md }}
-          />
+          {/* Actions */}
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(850)}
+            style={styles.actions}
+          >
+            <Button
+              title="Sign In"
+              onPress={handleLogin}
+              loading={loading}
+              size="lg"
+              fullWidth
+            />
+            <Button
+              title="Don't have an account? Sign up"
+              onPress={() => router.push('/(auth)/register')}
+              variant="ghost"
+              size="md"
+              fullWidth
+              style={styles.ghostButton}
+            />
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -109,20 +161,52 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.huge,
+    paddingBottom: spacing.xxxl,
+  },
+  header: {
+    marginBottom: spacing.xxxl,
+  },
+  brandLabel: {
+    fontWeight: '700',
+    letterSpacing: 4,
+    marginBottom: spacing.lg,
   },
   title: {
     marginBottom: spacing.sm,
   },
   subtitle: {
-    marginBottom: spacing.xxxl,
+    lineHeight: 24,
   },
-  form: {
-    marginBottom: spacing.xxl,
-  },
-  input: {
+  formCard: {
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.xl,
+    ...glass.card,
     marginBottom: spacing.lg,
   },
-  error: {
+  input: {
+    marginBottom: spacing.xl,
+  },
+  inputLast: {
+    marginBottom: spacing.xs,
+  },
+  errorCard: {
+    marginBottom: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: withOpacity('#F87171', 0.06),
+    borderWidth: 1,
+    borderColor: withOpacity('#F87171', 0.12),
+  },
+  errorIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actions: {
     marginTop: spacing.sm,
+  },
+  ghostButton: {
+    marginTop: spacing.md,
   },
 });

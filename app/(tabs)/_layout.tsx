@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
-import { colors, spacing } from '@/constants/theme';
+import { View, StyleSheet, Text } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import { colors, spacing, animation } from '@/constants/theme';
 
 export default function TabsLayout() {
   return (
@@ -9,59 +14,107 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          backgroundColor: '#0A0A0A',
+          borderTopColor: 'rgba(255,255,255,0.06)',
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: 84,
+          height: 88,
           paddingTop: spacing.sm,
+          paddingBottom: spacing.xxl,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: 2,
-        },
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen
         name="today"
         options={{
           title: 'Today',
-          tabBarIcon: ({ color }) => <TabIcon icon="⚡" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={'\u26A1'} label="Today" color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="plan"
         options={{
           title: 'Plan',
-          tabBarIcon: ({ color }) => <TabIcon icon="📅" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={'\uD83D\uDCC5'} label="Plan" color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
           title: 'Activity',
-          tabBarIcon: ({ color }) => <TabIcon icon="📊" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={'\uD83D\uDCCA'} label="Activity" color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <TabIcon icon="👤" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={'\uD83D\uDC64'} label="Profile" color={color} focused={focused} />
+          ),
         }}
       />
     </Tabs>
   );
 }
 
-function TabIcon({ icon, color }: { icon: string; color: string }) {
+function TabIcon({ icon, label, color, focused }: { icon: string; label: string; color: string; focused: boolean }) {
+  const scale = useSharedValue(1);
+  const dotOpacity = useSharedValue(focused ? 1 : 0);
+
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1.1 : 1, animation.spring.snappy);
+    dotOpacity.value = withSpring(focused ? 1 : 0, animation.spring.snappy);
+  }, [focused]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const dotStyle = useAnimatedStyle(() => ({
+    opacity: dotOpacity.value,
+    transform: [{ scale: dotOpacity.value }],
+  }));
+
   return (
-    <View style={{ opacity: color === colors.primary ? 1 : 0.5 }}>
-      <View style={{ fontSize: 22, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
-        <View><></></View>
-      </View>
+    <View style={styles.tabContainer}>
+      <Animated.View style={iconStyle}>
+        <Text style={[styles.tabEmoji, { opacity: focused ? 1 : 0.45 }]}>{icon}</Text>
+      </Animated.View>
+      <Text style={[styles.tabLabel, { color, fontWeight: focused ? '600' : '400' }]}>{label}</Text>
+      <Animated.View style={[styles.activeDot, dotStyle]} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  tabContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    minWidth: 56,
+  },
+  tabEmoji: {
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  tabLabel: {
+    fontSize: 10,
+    letterSpacing: 0.3,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+    marginTop: 1,
+  },
+});

@@ -1,9 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Typography, Mono } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { PaceZoneIndicator } from '@/components/workout/PaceZoneIndicator';
@@ -11,10 +18,81 @@ import { useWorkout } from '@/hooks/useWorkout';
 import { useLocation } from '@/hooks/useLocation';
 import { audioCoaching } from '@/services/audioCoaching';
 import { getZoneForHR, type ZoneConfig } from '@/services/heartRateZones';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
 import { formatPace, formatDuration } from '@/utils/paceCalculator';
 import { formatDistance } from '@/utils/formatters';
 import type { RunningWorkoutData } from '@/types/workout';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// ─── Circular Control Button ─────────────────────────────────────────────────
+function ControlButton({
+  onPress,
+  size,
+  backgroundColor,
+  borderColor,
+  label,
+  labelColor,
+  glowColor,
+}: {
+  onPress: () => void;
+  size: number;
+  backgroundColor: string;
+  borderColor?: string;
+  label: string;
+  labelColor: string;
+  glowColor?: string;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.9, animation.spring.snappy);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, animation.spring.snappy);
+  }, []);
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  }, [onPress]);
+
+  return (
+    <AnimatedPressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: borderColor ? 1.5 : 0,
+          borderColor: borderColor || 'transparent',
+        },
+        glowColor ? shadows.glow(glowColor) : undefined,
+        animatedStyle,
+      ]}
+    >
+      <Typography
+        variant="headline"
+        color={labelColor}
+        align="center"
+        style={{ fontWeight: '600', letterSpacing: 0.3 }}
+      >
+        {label}
+      </Typography>
+    </AnimatedPressable>
+  );
+}
 
 export default function RunActiveScreen() {
   const router = useRouter();
@@ -102,6 +180,7 @@ export default function RunActiveScreen() {
   };
 
   const togglePause = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     if (isPaused) {
       startTimer();
       setIsPaused(false);
@@ -147,9 +226,11 @@ export default function RunActiveScreen() {
   if (!activeWorkout || !runData) {
     return (
       <SafeAreaView style={styles.container}>
-        <Typography variant="body" color={colors.textSecondary} align="center">
-          No active workout
-        </Typography>
+        <View style={styles.emptyState}>
+          <Typography variant="body" color={colors.textSecondary} align="center">
+            No active workout
+          </Typography>
+        </View>
       </SafeAreaView>
     );
   }
@@ -160,191 +241,327 @@ export default function RunActiveScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Audio cue toggle */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => setAudioCuesEnabled(!audioCuesEnabled)}
-          activeOpacity={0.7}
-          style={[styles.audioToggle, !audioCuesEnabled && styles.audioToggleOff]}
+      {/* ── Top Bar: Audio Toggle ────────────────────────────────────────── */}
+      <Animated.View entering={FadeIn.delay(100).duration(400)} style={styles.topBar}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setAudioCuesEnabled(!audioCuesEnabled);
+          }}
+          style={({ pressed }) => [
+            styles.audioToggle,
+            !audioCuesEnabled && styles.audioToggleOff,
+            pressed && { opacity: 0.7 },
+          ]}
         >
-          <Typography variant="caption2" color={audioCuesEnabled ? colors.primary : colors.textTertiary}>
-            {audioCuesEnabled ? '🔊 Audio On' : '🔇 Audio Off'}
+          <Typography
+            variant="caption1"
+            color={audioCuesEnabled ? colors.primary : colors.textTertiary}
+            style={{ fontWeight: '600' }}
+          >
+            {audioCuesEnabled ? 'AUDIO ON' : 'AUDIO OFF'}
           </Typography>
-        </TouchableOpacity>
-      </View>
+        </Pressable>
 
-      {/* Current Segment */}
+        {/* Paused indicator */}
+        {isPaused && (
+          <View style={styles.pausedBadge}>
+            <Typography variant="caption1" color={colors.warning} style={{ fontWeight: '700', letterSpacing: 1 }}>
+              PAUSED
+            </Typography>
+          </View>
+        )}
+      </Animated.View>
+
+      {/* ── Segment Card ─────────────────────────────────────────────────── */}
       {currentSegment && (
-        <View style={styles.segmentHeader}>
-          <Badge
-            label={currentSegment.type.toUpperCase()}
-            color={colors.primary}
-            backgroundColor={`${colors.primary}20`}
-            size="md"
-          />
-          <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>
-            {currentSegment.description}
-          </Typography>
-          <Typography variant="footnote" color={colors.textTertiary}>
-            Segment {currentSegmentIndex + 1} of {totalSegments}
-          </Typography>
-        </View>
+        <Animated.View entering={FadeInDown.delay(200).duration(500).springify().damping(18)} style={styles.segmentCard}>
+          <View style={styles.segmentCardInner}>
+            <Badge
+              label={currentSegment.type.toUpperCase()}
+              color={colors.primary}
+              backgroundColor={withOpacity(colors.primary, 0.15)}
+              size="md"
+            />
+            <Typography
+              variant="callout"
+              color={colors.textSecondary}
+              style={{ marginTop: spacing.sm }}
+            >
+              {currentSegment.description}
+            </Typography>
+            <Typography variant="caption1" color={colors.textTertiary} style={{ marginTop: spacing.xs }}>
+              Segment {currentSegmentIndex + 1} of {totalSegments}
+            </Typography>
+          </View>
+        </Animated.View>
       )}
 
-      {/* Main metrics */}
-      <View style={styles.metrics}>
-        <View style={styles.mainMetric}>
-          <Mono align="center" style={styles.bigNumber}>
+      {/* ── Main Metrics ─────────────────────────────────────────────────── */}
+      <Animated.View entering={FadeIn.delay(300).duration(600)} style={styles.metricsArea}>
+        {/* Duration - hero metric */}
+        <View style={styles.heroMetric}>
+          <Mono align="center" style={styles.heroTime}>
             {formatDuration(elapsedSeconds)}
           </Mono>
-          <Typography variant="caption1" color={colors.textTertiary} align="center">
+          <Typography variant="caption1" color={colors.textTertiary} align="center" style={styles.metricLabel}>
             DURATION
           </Typography>
         </View>
 
-        <View style={styles.secondaryMetrics}>
-          <View style={styles.metricBox}>
-            <Typography variant="monoSmall" align="center">
+        {/* Secondary metrics in glass cards */}
+        <Animated.View entering={FadeInDown.delay(400).duration(500).springify().damping(18)} style={styles.secondaryRow}>
+          <View style={styles.metricCard}>
+            <Typography
+              variant="mono"
+              color={colors.textPrimary}
+              align="center"
+              style={styles.metricValue}
+            >
               {formatDistance(totalDistance)}
             </Typography>
-            <Typography variant="caption2" color={colors.textTertiary} align="center">
+            <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.metricLabel}>
               DISTANCE
             </Typography>
           </View>
-          <View style={styles.metricBox}>
-            <Typography variant="monoSmall" align="center">
+
+          <View style={styles.metricDivider} />
+
+          <View style={styles.metricCard}>
+            <Typography
+              variant="mono"
+              color={colors.textPrimary}
+              align="center"
+              style={styles.metricValue}
+            >
               {formatPace(currentPace)}/km
             </Typography>
-            <Typography variant="caption2" color={colors.textTertiary} align="center">
+            <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.metricLabel}>
               CURRENT PACE
             </Typography>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* HR Zone overlay */}
+        {/* HR Zone Banner */}
         {currentZone && (
-          <View style={[styles.hrZoneBanner, { backgroundColor: `${currentZone.color}20` }]}>
+          <Animated.View
+            entering={FadeInDown.delay(450).duration(400)}
+            style={[styles.hrZoneBanner, { backgroundColor: withOpacity(currentZone.color, 0.1) }]}
+          >
             <View style={[styles.hrZoneDot, { backgroundColor: currentZone.color }]} />
-            <Typography variant="caption1" color={currentZone.color} style={{ fontWeight: '600' }}>
+            <Typography variant="caption1" color={currentZone.color} style={{ fontWeight: '600', flex: 1 }}>
               Zone {currentZone.zone} — {currentZone.name}
             </Typography>
-            <Typography variant="caption1" color={colors.textSecondary} style={{ marginLeft: 'auto' }}>
+            <Typography variant="caption1" color={colors.textSecondary}>
               {currentHR} bpm
             </Typography>
-          </View>
+          </Animated.View>
         )}
 
-        {/* Target pace */}
+        {/* Target pace indicator */}
         {currentSegment && (
-          <PaceZoneIndicator
-            currentPace={currentPace}
-            targetPace={currentSegment.target_pace_min_km}
-            style={styles.paceIndicator}
-          />
+          <Animated.View entering={FadeInDown.delay(500).duration(500).springify().damping(18)}>
+            <PaceZoneIndicator
+              currentPace={currentPace}
+              targetPace={currentSegment.target_pace_min_km}
+              style={styles.paceIndicator}
+            />
+          </Animated.View>
         )}
-      </View>
+      </Animated.View>
 
-      {/* Progress */}
-      <View style={styles.progressSection}>
-        <ProgressBar progress={totalProgress} height={6} />
-        <Typography variant="caption2" color={colors.textTertiary} align="center" style={{ marginTop: spacing.xs }}>
+      {/* ── Progress Bar ─────────────────────────────────────────────────── */}
+      <Animated.View entering={FadeIn.delay(550).duration(400)} style={styles.progressSection}>
+        <ProgressBar
+          progress={totalProgress}
+          height={4}
+          color={colors.primary}
+          trackColor="rgba(255,255,255,0.06)"
+        />
+        <Typography
+          variant="caption2"
+          color={colors.textTertiary}
+          align="center"
+          style={{ marginTop: spacing.sm }}
+        >
           {formatDistance(totalDistance)} / {formatDistance(runData.total_distance_km)}
         </Typography>
-      </View>
+      </Animated.View>
 
-      {/* Controls */}
-      <View style={styles.controls}>
-        <Button
-          title="Cancel"
+      {/* ── Controls ─────────────────────────────────────────────────────── */}
+      <Animated.View entering={FadeInDown.delay(600).duration(500).springify().damping(18)} style={styles.controls}>
+        {/* Cancel button */}
+        <ControlButton
           onPress={handleCancel}
-          variant="ghost"
-          size="md"
+          size={60}
+          backgroundColor="rgba(255,255,255,0.03)"
+          borderColor="rgba(255,255,255,0.08)"
+          label="End"
+          labelColor={colors.textSecondary}
         />
-        <Button
-          title={isPaused ? 'Resume' : 'Pause'}
+
+        {/* Pause / Resume - large center button */}
+        <ControlButton
           onPress={togglePause}
-          variant="secondary"
-          size="lg"
+          size={80}
+          backgroundColor={isPaused ? withOpacity(colors.primary, 0.15) : 'rgba(255,255,255,0.06)'}
+          borderColor={isPaused ? colors.primary : 'rgba(255,255,255,0.1)'}
+          label={isPaused ? 'Go' : 'Pause'}
+          labelColor={isPaused ? colors.primary : colors.textPrimary}
+          glowColor={isPaused ? colors.primaryDark : undefined}
         />
-        <Button
-          title="Finish"
+
+        {/* Finish button */}
+        <ControlButton
           onPress={handleFinish}
-          variant="primary"
-          size="md"
+          size={60}
+          backgroundColor={colors.primary}
+          label="Done"
+          labelColor={colors.textInverse}
+          glowColor={colors.primaryDark}
         />
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
+    backgroundColor: '#050505',
+    paddingHorizontal: spacing.xl,
   },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Top bar ──────────────────────────────────────────────
   topBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     paddingTop: spacing.sm,
+    gap: spacing.sm,
   },
   audioToggle: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.full,
-    backgroundColor: `${colors.primary}15`,
+    backgroundColor: withOpacity(colors.primary, 0.1),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.2),
   },
   audioToggleOff: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  segmentHeader: {
+  pausedBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    backgroundColor: withOpacity(colors.warning, 0.1),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.warning, 0.2),
+  },
+
+  // ── Segment card ─────────────────────────────────────────
+  segmentCard: {
+    marginTop: spacing.lg,
+    borderRadius: borderRadius.lg,
+    ...glass.card,
+    overflow: 'hidden',
+  },
+  segmentCardInner: {
+    padding: spacing.lg,
     alignItems: 'center',
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
   },
-  metrics: {
+
+  // ── Metrics area ─────────────────────────────────────────
+  metricsArea: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: spacing.lg,
   },
-  mainMetric: {
+  heroMetric: {
+    alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  bigNumber: {
+  heroTime: {
     fontSize: 64,
     fontWeight: '200',
+    lineHeight: 72,
     fontVariant: ['tabular-nums'],
+    color: colors.textPrimary,
+    letterSpacing: -1,
   },
-  secondaryMetrics: {
+  secondaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  metricBox: {
     alignItems: 'center',
+    borderRadius: borderRadius.lg,
+    ...glass.card,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
+  metricCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricValue: {
+    fontSize: 30,
+    fontWeight: '300',
+    lineHeight: 36,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  metricDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  metricLabel: {
+    letterSpacing: 1.2,
+    marginTop: spacing.xs,
+    fontWeight: '500',
+  },
+
+  // ── HR Zone ──────────────────────────────────────────────
   hrZoneBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     marginTop: spacing.lg,
     gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   hrZoneDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
+
+  // ── Pace indicator ───────────────────────────────────────
   paceIndicator: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.lg,
   },
+
+  // ── Progress ─────────────────────────────────────────────
   progressSection: {
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
   },
+
+  // ── Controls ─────────────────────────────────────────────
   controls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
     paddingBottom: spacing.xxxl,
+    paddingTop: spacing.md,
   },
 });

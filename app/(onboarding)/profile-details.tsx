@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
 import type { Gender } from '@/types/user';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const genderOptions: Array<{ value: Gender; label: string }> = [
   { value: 'male', label: 'Male' },
@@ -14,6 +25,60 @@ const genderOptions: Array<{ value: Gender; label: string }> = [
   { value: 'other', label: 'Other' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ];
+
+function GenderPill({
+  option,
+  isSelected,
+  onSelect,
+  index,
+}: {
+  option: (typeof genderOptions)[number];
+  isSelected: boolean;
+  onSelect: () => void;
+  index: number;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.95, animation.spring.snappy);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, animation.spring.snappy);
+  }, []);
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelect();
+  }, [onSelect]);
+
+  return (
+    <Animated.View entering={FadeInUp.delay(500 + index * 60).duration(400).springify()}>
+      <AnimatedPressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[
+          styles.genderOption,
+          animatedStyle,
+          isSelected && styles.genderSelected,
+        ]}
+      >
+        <Typography
+          variant="footnote"
+          color={isSelected ? colors.primary : colors.textSecondary}
+          style={{ fontWeight: '600' }}
+        >
+          {option.label}
+        </Typography>
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
 
 export default function ProfileDetailsScreen() {
   const router = useRouter();
@@ -27,86 +92,92 @@ export default function ProfileDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Typography variant="caption1" color={colors.primary} style={styles.step}>
-            STEP 4 OF 5
-          </Typography>
-          <Typography variant="largeTitle">
-            About you
-          </Typography>
-          <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
-            This helps us personalise your plan safely
-          </Typography>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Animated.View entering={FadeIn.duration(600)} style={styles.header}>
+          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
+            <Typography variant="caption1" color={colors.primary} style={styles.step}>
+              STEP 4 OF 5
+            </Typography>
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+            <Typography variant="largeTitle" color={colors.textPrimary}>
+              About you
+            </Typography>
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
+            <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
+              This helps us personalise your plan safely
+            </Typography>
+          </Animated.View>
+        </Animated.View>
 
-        <View style={styles.row}>
+        <Animated.View entering={FadeInUp.delay(350).duration(450)}>
+          <View style={styles.row}>
+            <Input
+              label="Age"
+              placeholder="30"
+              value={age}
+              onChangeText={setAge}
+              keyboardType="numeric"
+              containerStyle={styles.halfInput}
+            />
+            <Input
+              label="Weight"
+              placeholder="75"
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="numeric"
+              suffix="kg"
+              containerStyle={styles.halfInput}
+            />
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.delay(420).duration(450)}>
           <Input
-            label="Age"
-            placeholder="30"
-            value={age}
-            onChangeText={setAge}
+            label="Height"
+            placeholder="175"
+            value={height}
+            onChangeText={setHeight}
             keyboardType="numeric"
-            containerStyle={styles.halfInput}
+            suffix="cm"
+            containerStyle={styles.input}
           />
-          <Input
-            label="Weight"
-            placeholder="75"
-            value={weight}
-            onChangeText={setWeight}
-            keyboardType="numeric"
-            suffix="kg"
-            containerStyle={styles.halfInput}
-          />
-        </View>
+        </Animated.View>
 
-        <Input
-          label="Height"
-          placeholder="175"
-          value={height}
-          onChangeText={setHeight}
-          keyboardType="numeric"
-          suffix="cm"
-          containerStyle={styles.input}
-        />
+        <Animated.View entering={FadeInUp.delay(480).duration(450)}>
+          <Typography variant="subheadline" color={colors.textSecondary} style={styles.genderLabel}>
+            Gender
+          </Typography>
+        </Animated.View>
 
-        <Typography variant="subheadline" color={colors.textSecondary} style={styles.genderLabel}>
-          Gender
-        </Typography>
         <View style={styles.genderRow}>
-          {genderOptions.map((option) => (
-            <TouchableOpacity
+          {genderOptions.map((option, index) => (
+            <GenderPill
               key={option.value}
-              onPress={() => setGender(option.value)}
-              style={[
-                styles.genderOption,
-                gender === option.value && styles.genderSelected,
-              ]}
-            >
-              <Typography
-                variant="footnote"
-                color={gender === option.value ? colors.primary : colors.textSecondary}
-                style={{ fontWeight: '600' }}
-              >
-                {option.label}
-              </Typography>
-            </TouchableOpacity>
+              option={option}
+              isSelected={gender === option.value}
+              onSelect={() => setGender(option.value)}
+              index={index}
+            />
           ))}
         </View>
 
-        <Input
-          label="Injury History (optional)"
-          placeholder="e.g. Runner's knee 6 months ago, currently fine"
-          value={injuries}
-          onChangeText={setInjuries}
-          multiline
-          numberOfLines={3}
-          containerStyle={styles.input}
-          style={{ minHeight: 80, textAlignVertical: 'top' }}
-        />
+        <Animated.View entering={FadeInUp.delay(700).duration(450)}>
+          <Input
+            label="Injury History (optional)"
+            placeholder="e.g. Runner's knee 6 months ago, currently fine"
+            value={injuries}
+            onChangeText={setInjuries}
+            multiline
+            numberOfLines={3}
+            containerStyle={styles.input}
+            style={{ minHeight: 80, textAlignVertical: 'top' }}
+          />
+        </Animated.View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <Animated.View entering={FadeInUp.delay(800).duration(500)} style={styles.footer}>
         <Button
           title="Continue"
           onPress={() => {
@@ -125,7 +196,7 @@ export default function ProfileDetailsScreen() {
           size="lg"
           fullWidth
         />
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -133,7 +204,7 @@ export default function ProfileDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
   scrollContent: {
     paddingHorizontal: spacing.xl,
@@ -145,8 +216,9 @@ const styles = StyleSheet.create({
   },
   step: {
     marginBottom: spacing.sm,
-    fontWeight: '600',
-    letterSpacing: 1,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   subtitle: {
     marginTop: spacing.sm,
@@ -175,13 +247,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   genderSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: withOpacity(colors.primary, 0.06),
   },
   footer: {
     paddingHorizontal: spacing.xl,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, TextInput, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -11,7 +12,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
 import {
   getEquipmentStatus,
-  createNewShoe,
   type Equipment,
   type EquipmentStatus,
 } from '@/services/equipmentTracker';
@@ -22,7 +22,7 @@ import {
   type ZoneConfig,
 } from '@/services/heartRateZones';
 import { audioCoaching } from '@/services/audioCoaching';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, shadows } from '@/constants/theme';
 import { formatWeight, formatHeight } from '@/utils/formatters';
 
 const STATUS_COLORS: Record<EquipmentStatus, string> = {
@@ -36,20 +36,17 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { plan, goal } = usePlan();
 
-  // Equipment state (would come from store/API in production)
   const [shoes, setShoes] = useState<Equipment[]>([]);
   const [showAddShoe, setShowAddShoe] = useState(false);
   const [newShoeName, setNewShoeName] = useState('');
   const [newShoeBrand, setNewShoeBrand] = useState('');
   const [newShoeModel, setNewShoeModel] = useState('');
 
-  // HR zone state
   const [showHRSetup, setShowHRSetup] = useState(false);
   const [maxHR, setMaxHR] = useState('');
   const [restingHR, setRestingHR] = useState('');
   const [hrZones, setHRZones] = useState<ZoneConfig | null>(null);
 
-  // Audio coaching settings
   const [audioCuesEnabled, setAudioCuesEnabled] = useState(true);
   const [paceAlerts, setPaceAlerts] = useState(true);
   const [distanceAlerts, setDistanceAlerts] = useState(true);
@@ -57,14 +54,7 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: () => {
-          signOut();
-          router.replace('/(auth)/welcome');
-        },
-      },
+      { text: 'Sign Out', style: 'destructive', onPress: () => { signOut(); router.replace('/(auth)/welcome'); } },
     ]);
   };
 
@@ -93,15 +83,9 @@ export default function ProfileScreen() {
   };
 
   const handleRetireShoe = (shoeId: string) => {
-    Alert.alert('Retire Shoe', 'This shoe will be moved to retired. You can\'t undo this.', [
+    Alert.alert('Retire Shoe', "This shoe will be moved to retired. You can't undo this.", [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Retire',
-        style: 'destructive',
-        onPress: () => {
-          setShoes((prev) => prev.map((s) => s.id === shoeId ? { ...s, is_retired: true } : s));
-        },
-      },
+      { text: 'Retire', style: 'destructive', onPress: () => { setShoes((prev) => prev.map((s) => s.id === shoeId ? { ...s, is_retired: true } : s)); } },
     ]);
   };
 
@@ -132,27 +116,22 @@ export default function ProfileScreen() {
   };
 
   const activeShoes = shoes.filter((s) => !s.is_retired);
+  const initial = user?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
         <Typography variant="largeTitle">Profile</Typography>
-      </View>
+      </Animated.View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* User info */}
-        <Card style={styles.profileCard}>
+        {/* Avatar + Info */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Typography variant="title1" align="center">
-              {user?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
-            </Typography>
+            <Typography variant="title1" color={colors.textInverse} align="center">{initial}</Typography>
           </View>
-          <Typography variant="title3" align="center">
-            {user?.full_name || 'Athlete'}
-          </Typography>
-          <Typography variant="callout" color={colors.textSecondary} align="center">
-            {user?.email}
-          </Typography>
+          <Typography variant="title3" align="center">{user?.full_name || 'Athlete'}</Typography>
+          <Typography variant="callout" color={colors.textTertiary} align="center">{user?.email}</Typography>
 
           {user?.weight_kg && user?.height_cm && (
             <View style={styles.statsRow}>
@@ -167,181 +146,124 @@ export default function ProfileScreen() {
               </View>
             </View>
           )}
-        </Card>
+        </Animated.View>
 
         {/* Current Goal */}
         {goal && (
-          <Card style={styles.sectionCard}>
-            <Typography variant="headline" style={styles.sectionTitle}>Current Goal</Typography>
-            <Typography variant="body">
-              {goal.goal_subtype?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || goal.goal_type}
-            </Typography>
-            {goal.target_value && (
-              <Typography variant="callout" color={colors.primary} style={{ marginTop: spacing.xs }}>
-                Target: {goal.target_value}
+          <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+            <View style={styles.sectionCard}>
+              <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>CURRENT GOAL</Typography>
+              <Typography variant="headline">
+                {goal.goal_subtype?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || goal.goal_type}
               </Typography>
-            )}
-          </Card>
+              {goal.target_value && (
+                <Typography variant="callout" color={colors.primary} style={{ marginTop: spacing.xs }}>
+                  Target: {goal.target_value}
+                </Typography>
+              )}
+            </View>
+          </Animated.View>
         )}
 
         {/* My Shoes */}
-        <Card style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Typography variant="headline">My Shoes</Typography>
-            <TouchableOpacity onPress={() => setShowAddShoe(true)}>
-              <Typography variant="callout" color={colors.primary} style={{ fontWeight: '600' }}>
-                + Add
-              </Typography>
-            </TouchableOpacity>
-          </View>
+        <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>MY SHOES</Typography>
+              <TouchableOpacity onPress={() => setShowAddShoe(true)}>
+                <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '700' }}>+ ADD</Typography>
+              </TouchableOpacity>
+            </View>
 
-          {activeShoes.length === 0 ? (
-            <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: spacing.sm }}>
-              Track your running shoes to know when they need replacing.
-            </Typography>
-          ) : (
-            activeShoes.map((shoe) => {
-              const status = getEquipmentStatus(shoe);
-              return (
-                <TouchableOpacity
-                  key={shoe.id}
-                  style={styles.shoeRow}
-                  onLongPress={() => handleRetireShoe(shoe.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.shoeNameRow}>
-                      <Typography variant="callout" style={{ fontWeight: '500' }}>
-                        {shoe.name}
-                      </Typography>
-                      {shoe.is_default && (
-                        <Badge label="Default" color={colors.primary} backgroundColor={`${colors.primary}20`} />
-                      )}
+            {activeShoes.length === 0 ? (
+              <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: spacing.sm }}>
+                Track your running shoes to know when they need replacing.
+              </Typography>
+            ) : (
+              activeShoes.map((shoe) => {
+                const status = getEquipmentStatus(shoe);
+                return (
+                  <TouchableOpacity key={shoe.id} style={styles.shoeRow} onLongPress={() => handleRetireShoe(shoe.id)} activeOpacity={0.7}>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.shoeNameRow}>
+                        <Typography variant="callout" style={{ fontWeight: '500' }}>{shoe.name}</Typography>
+                        {shoe.is_default && <Badge label="Default" color={colors.primary} backgroundColor="rgba(34,211,238,0.12)" />}
+                      </View>
+                      {shoe.brand && <Typography variant="caption2" color={colors.textTertiary}>{shoe.brand} {shoe.model}</Typography>}
+                      <View style={styles.shoeProgress}>
+                        <ProgressBar progress={status.percentUsed} color={STATUS_COLORS[status.status]} height={3} style={{ flex: 1, marginRight: spacing.sm }} />
+                        <Typography variant="caption2" color={STATUS_COLORS[status.status]} style={{ fontWeight: '600' }}>{Math.round(shoe.total_distance_km)}km</Typography>
+                      </View>
                     </View>
-                    {shoe.brand && (
-                      <Typography variant="caption2" color={colors.textTertiary}>
-                        {shoe.brand} {shoe.model}
-                      </Typography>
-                    )}
-                    <View style={styles.shoeProgress}>
-                      <ProgressBar
-                        progress={status.percentUsed}
-                        color={STATUS_COLORS[status.status]}
-                        height={4}
-                        style={{ flex: 1, marginRight: spacing.sm }}
-                      />
-                      <Typography variant="caption2" color={STATUS_COLORS[status.status]} style={{ fontWeight: '600' }}>
-                        {Math.round(shoe.total_distance_km)}km
-                      </Typography>
-                    </View>
-                  </View>
-                  <Badge
-                    label={status.status}
-                    color={STATUS_COLORS[status.status]}
-                    backgroundColor={`${STATUS_COLORS[status.status]}15`}
-                  />
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </Card>
+                    <Badge label={status.status} color={STATUS_COLORS[status.status]} backgroundColor={`${STATUS_COLORS[status.status]}12`} />
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </Animated.View>
 
         {/* Heart Rate Zones */}
-        <Card style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Typography variant="headline">Heart Rate Zones</Typography>
-            <TouchableOpacity onPress={() => setShowHRSetup(true)}>
-              <Typography variant="callout" color={colors.primary} style={{ fontWeight: '600' }}>
-                {hrZones ? 'Edit' : 'Set Up'}
-              </Typography>
-            </TouchableOpacity>
-          </View>
-
-          {hrZones ? (
-            <View style={{ marginTop: spacing.sm }}>
-              {hrZones.zones.map((zone) => (
-                <View key={zone.zone} style={styles.zoneRow}>
-                  <View style={[styles.zoneDot, { backgroundColor: zone.color }]} />
-                  <Typography variant="caption1" style={{ width: 20, fontWeight: '600' }}>
-                    Z{zone.zone}
-                  </Typography>
-                  <Typography variant="caption1" color={colors.textSecondary} style={{ flex: 1 }}>
-                    {zone.name}
-                  </Typography>
-                  <Typography variant="caption1" style={{ fontWeight: '600' }}>
-                    {zone.minBpm}–{zone.maxBpm}
-                  </Typography>
-                  <Typography variant="caption2" color={colors.textTertiary} style={{ marginLeft: spacing.xs }}>
-                    bpm
-                  </Typography>
-                </View>
-              ))}
+        <Animated.View entering={FadeInDown.delay(400).duration(400)}>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>HEART RATE ZONES</Typography>
+              <TouchableOpacity onPress={() => setShowHRSetup(true)}>
+                <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '700' }}>{hrZones ? 'EDIT' : 'SET UP'}</Typography>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: spacing.sm }}>
-              Set up HR zones for real-time zone feedback during runs.
-            </Typography>
-          )}
-        </Card>
+
+            {hrZones ? (
+              <View style={{ marginTop: spacing.sm }}>
+                {hrZones.zones.map((zone) => (
+                  <View key={zone.zone} style={styles.zoneRow}>
+                    <View style={[styles.zoneDot, { backgroundColor: zone.color }]} />
+                    <Typography variant="caption1" style={{ width: 22, fontWeight: '600' }}>Z{zone.zone}</Typography>
+                    <Typography variant="caption1" color={colors.textSecondary} style={{ flex: 1 }}>{zone.name}</Typography>
+                    <Typography variant="caption1" style={{ fontWeight: '600' }}>{zone.minBpm}–{zone.maxBpm}</Typography>
+                    <Typography variant="caption2" color={colors.textTertiary} style={{ marginLeft: spacing.xs }}>bpm</Typography>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Typography variant="footnote" color={colors.textTertiary} style={{ marginTop: spacing.sm }}>
+                Set up HR zones for real-time zone feedback during runs.
+              </Typography>
+            )}
+          </View>
+        </Animated.View>
 
         {/* Audio Coaching */}
-        <Card style={styles.sectionCard}>
-          <Typography variant="headline" style={styles.sectionTitle}>Audio Coaching</Typography>
-          <ToggleRow
-            label="Audio Cues"
-            description="Voice announcements during runs"
-            value={audioCuesEnabled}
-            onToggle={(v) => {
-              setAudioCuesEnabled(v);
-              audioCoaching.updateConfig({ enabled: v });
-            }}
-          />
-          <ToggleRow
-            label="Pace Alerts"
-            description="Tell me when I'm off target"
-            value={paceAlerts}
-            onToggle={(v) => {
-              setPaceAlerts(v);
-              audioCoaching.updateConfig({ paceAlerts: v });
-            }}
-          />
-          <ToggleRow
-            label="Distance Alerts"
-            description="Announce each kilometre"
-            value={distanceAlerts}
-            onToggle={(v) => {
-              setDistanceAlerts(v);
-              audioCoaching.updateConfig({ distanceAlerts: v });
-            }}
-          />
-        </Card>
+        <Animated.View entering={FadeInDown.delay(500).duration(400)}>
+          <View style={styles.sectionCard}>
+            <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>AUDIO COACHING</Typography>
+            <ToggleRow label="Audio Cues" description="Voice announcements during runs" value={audioCuesEnabled} onToggle={(v) => { setAudioCuesEnabled(v); audioCoaching.updateConfig({ enabled: v }); }} />
+            <ToggleRow label="Pace Alerts" description="Tell me when I'm off target" value={paceAlerts} onToggle={(v) => { setPaceAlerts(v); audioCoaching.updateConfig({ paceAlerts: v }); }} />
+            <ToggleRow label="Distance Alerts" description="Announce each kilometre" value={distanceAlerts} onToggle={(v) => { setDistanceAlerts(v); audioCoaching.updateConfig({ distanceAlerts: v }); }} />
+          </View>
+        </Animated.View>
 
         {/* Connections */}
-        <Card style={styles.sectionCard}>
-          <Typography variant="headline" style={styles.sectionTitle}>Connections</Typography>
-          <SettingRow label="Apple Health" value="Not connected" />
-          <SettingRow label="Strava" value="Not connected" />
-          <SettingRow label="Garmin Connect" value="Not connected" />
-        </Card>
+        <Animated.View entering={FadeInDown.delay(600).duration(400)}>
+          <View style={styles.sectionCard}>
+            <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>CONNECTIONS</Typography>
+            <SettingRow label="Apple Health" value="Not connected" />
+            <SettingRow label="Strava" value="Not connected" />
+            <SettingRow label="Garmin Connect" value="Not connected" />
+          </View>
+        </Animated.View>
 
         {/* Settings */}
-        <Card style={styles.sectionCard}>
-          <Typography variant="headline" style={styles.sectionTitle}>Settings</Typography>
-          <SettingRow label="Units" value={user?.unit_preference === 'imperial' ? 'Imperial' : 'Metric'} />
-          <SettingRow label="Notifications" value="Enabled" />
-        </Card>
+        <Animated.View entering={FadeInDown.delay(700).duration(400)}>
+          <View style={styles.sectionCard}>
+            <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>SETTINGS</Typography>
+            <SettingRow label="Units" value={user?.unit_preference === 'imperial' ? 'Imperial' : 'Metric'} />
+            <SettingRow label="Notifications" value="Enabled" />
+          </View>
+        </Animated.View>
 
-        <Button
-          title="Sign Out"
-          onPress={handleSignOut}
-          variant="danger"
-          fullWidth
-          style={styles.signOutButton}
-        />
-
-        <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.version}>
-          Pulse v1.0.0
-        </Typography>
+        <Button title="Sign Out" onPress={handleSignOut} variant="danger" fullWidth style={styles.signOutButton} />
+        <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.version}>Pulse v1.0.0</Typography>
       </ScrollView>
 
       {/* Add Shoe Modal */}
@@ -349,49 +271,12 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-              Add Running Shoe
-            </Typography>
-            <TextInput
-              style={styles.input}
-              placeholder="Shoe name (e.g. Daily Trainers)"
-              placeholderTextColor={colors.textTertiary}
-              value={newShoeName}
-              onChangeText={setNewShoeName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Brand (e.g. Nike)"
-              placeholderTextColor={colors.textTertiary}
-              value={newShoeBrand}
-              onChangeText={setNewShoeBrand}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Model (e.g. Pegasus 41)"
-              placeholderTextColor={colors.textTertiary}
-              value={newShoeModel}
-              onChangeText={setNewShoeModel}
-            />
-            <Button
-              title="Add Shoe"
-              onPress={handleAddShoe}
-              fullWidth
-              disabled={!newShoeName.trim()}
-              style={{ marginTop: spacing.md }}
-            />
-            <Button
-              title="Cancel"
-              variant="ghost"
-              onPress={() => {
-                setShowAddShoe(false);
-                setNewShoeName('');
-                setNewShoeBrand('');
-                setNewShoeModel('');
-              }}
-              fullWidth
-              style={{ marginTop: spacing.sm }}
-            />
+            <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>Add Running Shoe</Typography>
+            <TextInput style={styles.input} placeholder="Shoe name (e.g. Daily Trainers)" placeholderTextColor={colors.textTertiary} value={newShoeName} onChangeText={setNewShoeName} />
+            <TextInput style={styles.input} placeholder="Brand (e.g. Nike)" placeholderTextColor={colors.textTertiary} value={newShoeBrand} onChangeText={setNewShoeBrand} />
+            <TextInput style={styles.input} placeholder="Model (e.g. Pegasus 41)" placeholderTextColor={colors.textTertiary} value={newShoeModel} onChangeText={setNewShoeModel} />
+            <Button title="Add Shoe" onPress={handleAddShoe} fullWidth disabled={!newShoeName.trim()} style={{ marginTop: spacing.md }} />
+            <Button title="Cancel" variant="ghost" onPress={() => { setShowAddShoe(false); setNewShoeName(''); setNewShoeBrand(''); setNewShoeModel(''); }} fullWidth style={{ marginTop: spacing.sm }} />
           </View>
         </View>
       </Modal>
@@ -401,63 +286,25 @@ export default function ProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>
-              Heart Rate Zones
-            </Typography>
+            <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>Heart Rate Zones</Typography>
             <Typography variant="footnote" color={colors.textSecondary} align="center" style={{ marginBottom: spacing.xl }}>
-              Enter your max HR, or estimate it from your age
+              Enter your max HR, or estimate from age
             </Typography>
 
-            <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
-              MAX HEART RATE
-            </Typography>
+            <Typography variant="caption1" color={colors.textTertiary} style={styles.inputLabel}>MAX HEART RATE</Typography>
             <View style={styles.hrInputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="e.g. 190"
-                placeholderTextColor={colors.textTertiary}
-                value={maxHR}
-                onChangeText={setMaxHR}
-                keyboardType="number-pad"
-              />
-              <Button
-                title="Estimate"
-                variant="secondary"
-                size="sm"
-                onPress={handleEstimateMaxHR}
-                style={{ marginLeft: spacing.sm }}
-              />
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="e.g. 190" placeholderTextColor={colors.textTertiary} value={maxHR} onChangeText={setMaxHR} keyboardType="number-pad" />
+              <Button title="Estimate" variant="secondary" size="sm" onPress={handleEstimateMaxHR} style={{ marginLeft: spacing.sm }} />
             </View>
 
-            <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs, marginTop: spacing.md }}>
-              RESTING HEART RATE (optional)
-            </Typography>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 55"
-              placeholderTextColor={colors.textTertiary}
-              value={restingHR}
-              onChangeText={setRestingHR}
-              keyboardType="number-pad"
-            />
+            <Typography variant="caption1" color={colors.textTertiary} style={[styles.inputLabel, { marginTop: spacing.md }]}>RESTING HEART RATE (optional)</Typography>
+            <TextInput style={styles.input} placeholder="e.g. 55" placeholderTextColor={colors.textTertiary} value={restingHR} onChangeText={setRestingHR} keyboardType="number-pad" />
             <Typography variant="caption2" color={colors.textTertiary} style={{ marginTop: spacing.xs }}>
               Adding resting HR uses the Karvonen method for more accurate zones
             </Typography>
 
-            <Button
-              title="Calculate Zones"
-              onPress={handleCalculateZones}
-              fullWidth
-              disabled={!maxHR}
-              style={{ marginTop: spacing.xl }}
-            />
-            <Button
-              title="Cancel"
-              variant="ghost"
-              onPress={() => setShowHRSetup(false)}
-              fullWidth
-              style={{ marginTop: spacing.sm }}
-            />
+            <Button title="Calculate Zones" onPress={handleCalculateZones} fullWidth disabled={!maxHR} style={{ marginTop: spacing.xl }} />
+            <Button title="Cancel" variant="ghost" onPress={() => setShowHRSetup(false)} fullWidth style={{ marginTop: spacing.sm }} />
           </View>
         </View>
       </Modal>
@@ -489,8 +336,8 @@ function ToggleRow({ label, description, value, onToggle }: {
       <Switch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: colors.surfaceLight, true: `${colors.primary}60` }}
-        thumbColor={value ? colors.primary : colors.surfaceElevated}
+        trackColor={{ false: 'rgba(255,255,255,0.08)', true: 'rgba(34,211,238,0.35)' }}
+        thumbColor={value ? colors.primary : 'rgba(255,255,255,0.3)'}
       />
     </View>
   );
@@ -502,15 +349,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.massive,
   },
   profileCard: {
+    ...glass.cardElevated,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xxl,
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
@@ -522,10 +372,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.md,
+    ...shadows.glow(colors.primaryDark),
   },
   statsRow: {
     flexDirection: 'row',
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
     alignItems: 'center',
   },
   stat: {
@@ -535,42 +386,45 @@ const styles = StyleSheet.create({
   divider: {
     width: 1,
     height: 32,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   sectionCard: {
-    marginBottom: spacing.lg,
+    ...glass.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
-  sectionTitle: {
+  sectionLabel: {
+    fontWeight: '700',
+    letterSpacing: 1.5,
     marginBottom: spacing.md,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
   },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
-  // Shoes
   shoeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
     gap: spacing.md,
   },
   shoeNameRow: {
@@ -583,7 +437,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: spacing.xs,
   },
-  // HR Zones
   zoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -599,17 +452,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: '#0A0A0A',
     borderTopLeftRadius: borderRadius.xxl,
     borderTopRightRadius: borderRadius.xxl,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.huge,
     paddingTop: spacing.md,
     maxHeight: '80%',
@@ -618,19 +470,22 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignSelf: 'center',
     marginBottom: spacing.xl,
   },
+  inputLabel: {
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
   input: {
-    backgroundColor: colors.surface,
+    ...glass.input,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     color: colors.textPrimary,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.sm,
   },
   signOutButton: {

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -25,10 +26,10 @@ import {
   type IntensityLevel,
 } from '@/services/instantWorkout';
 import { getShoesWithWarnings, type Equipment } from '@/services/equipmentTracker';
-import { colors, spacing, borderRadius, workoutTypeColors } from '@/constants/theme';
-import { formatWorkoutType, formatWorkoutDuration, formatDistance, formatPaceWithUnit } from '@/utils/formatters';
+import { colors, spacing, borderRadius, workoutTypeColors, glass, withOpacity } from '@/constants/theme';
+import { formatWorkoutType, formatWorkoutDuration, formatDistance } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateUtils';
-import { isRunningWorkout, type RunningWorkoutData, type StrengthWorkoutData } from '@/types/workout';
+import { isRunningWorkout, type RunningWorkoutData } from '@/types/workout';
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -36,19 +37,16 @@ export default function TodayScreen() {
   const { plan, todayWorkout, workouts, isLoading } = usePlan();
   const { startWorkout } = useWorkout();
 
-  // Feeling check state
   const [showFeelingCheck, setShowFeelingCheck] = useState(false);
   const [selectedFeeling, setSelectedFeeling] = useState<FeelingLevel | null>(null);
   const [selectedIssues, setSelectedIssues] = useState<SpecificIssue[]>([]);
   const [adjustmentResult, setAdjustmentResult] = useState<string | null>(null);
 
-  // Instant workout state
   const [showInstantModal, setShowInstantModal] = useState(false);
   const [instantStep, setInstantStep] = useState<'type' | 'time' | 'intensity'>('type');
   const [instantType, setInstantType] = useState<string | null>(null);
   const [instantTime, setInstantTime] = useState<number | null>(null);
 
-  // Equipment warnings (would come from store/API in production)
   const [shoeWarnings] = useState<Equipment[]>([]);
 
   const completedThisWeek = workouts.filter(
@@ -68,7 +66,6 @@ export default function TodayScreen() {
   const handleFeelingSelected = (feeling: FeelingLevel) => {
     setSelectedFeeling(feeling);
     if (feeling === 'great' || feeling === 'good') {
-      // No issues needed, start directly
       if (todayWorkout) {
         startWorkout(todayWorkout);
         setShowFeelingCheck(false);
@@ -86,7 +83,6 @@ export default function TodayScreen() {
     const result = adjustWorkout(todayWorkout, selectedFeeling, selectedIssues);
     if (result.wasAdjusted) {
       setAdjustmentResult(result.explanation);
-      // Use adjusted workout
       startWorkout(result.adjustedWorkout);
     } else {
       startWorkout(todayWorkout);
@@ -127,84 +123,90 @@ export default function TodayScreen() {
   };
 
   const warnShoes = getShoesWithWarnings(shoeWarnings);
+  const workoutColor = todayWorkout
+    ? workoutTypeColors[todayWorkout.workout_type] || colors.primary
+    : colors.primary;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={styles.header}>
-          <Typography variant="title3" color={colors.textSecondary}>
+        <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
+          <Typography variant="callout" color={colors.textTertiary}>
             {greeting}
           </Typography>
           <Typography variant="largeTitle">
             {user?.full_name?.split(' ')[0] || 'Athlete'}
           </Typography>
-        </View>
+        </Animated.View>
 
-        {/* Shoe replacement warning */}
+        {/* Shoe warning */}
         {warnShoes.length > 0 && (
-          <Card style={styles.warningCard}>
-            <View style={styles.warningRow}>
-              <Typography variant="footnote" color={colors.warning}>
-                👟 {warnShoes[0].name} needs replacing — {Math.round(warnShoes[0].total_distance_km)}km logged
-              </Typography>
-            </View>
-          </Card>
+          <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.warningCard}>
+            <Typography variant="footnote" color={colors.warning}>
+              {'\uD83D\uDC5F'} {warnShoes[0].name} needs replacing — {Math.round(warnShoes[0].total_distance_km)}km logged
+            </Typography>
+          </Animated.View>
         )}
 
-        {/* Adjustment result feedback */}
+        {/* Adjustment feedback */}
         {adjustmentResult && (
-          <Card style={styles.adjustmentCard}>
-            <Typography variant="footnote" color={colors.primary}>
+          <Pressable onPress={() => setAdjustmentResult(null)} style={styles.adjustmentCard}>
+            <Typography variant="footnote" color={colors.primary} style={{ flex: 1 }}>
               {adjustmentResult}
             </Typography>
-            <TouchableOpacity onPress={() => setAdjustmentResult(null)}>
-              <Typography variant="caption2" color={colors.textTertiary}>Dismiss</Typography>
-            </TouchableOpacity>
-          </Card>
+            <Typography variant="caption2" color={colors.textTertiary}>Dismiss</Typography>
+          </Pressable>
         )}
 
         {/* Week Progress */}
         {plan && (
-          <Card style={styles.weekCard}>
-            <View style={styles.weekHeader}>
-              <Typography variant="headline">
-                Week {plan.current_week} of {plan.total_weeks}
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary}>
-                {completedThisWeek}/{totalThisWeek} done
-              </Typography>
-            </View>
-            <ProgressBar
-              progress={totalThisWeek > 0 ? completedThisWeek / totalThisWeek : 0}
-              style={{ marginTop: spacing.md }}
-            />
-          </Card>
+          <Animated.View entering={FadeInDown.delay(150).duration(400)}>
+            <Card style={styles.weekCard}>
+              <View style={styles.weekHeader}>
+                <View>
+                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' }}>
+                    WEEK {plan.current_week}
+                  </Typography>
+                  <Typography variant="title3" style={{ marginTop: 2 }}>
+                    {completedThisWeek} of {totalThisWeek} sessions
+                  </Typography>
+                </View>
+                <View style={styles.weekBadge}>
+                  <Typography variant="headline" color={colors.primary}>
+                    {totalThisWeek > 0 ? Math.round((completedThisWeek / totalThisWeek) * 100) : 0}%
+                  </Typography>
+                </View>
+              </View>
+              <ProgressBar
+                progress={totalThisWeek > 0 ? completedThisWeek / totalThisWeek : 0}
+                height={4}
+                style={{ marginTop: spacing.lg }}
+              />
+            </Card>
+          </Animated.View>
         )}
 
         {/* Today's Workout */}
         {todayWorkout ? (
-          <View style={styles.section}>
-            <Typography variant="headline" style={styles.sectionTitle}>
-              Today's Workout
+          <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.section}>
+            <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>
+              TODAY'S SESSION
             </Typography>
-            <Card
-              style={[
-                styles.workoutCard,
-                { borderLeftColor: workoutTypeColors[todayWorkout.workout_type] || colors.primary, borderLeftWidth: 4 },
-              ]}
+            <Pressable
               onPress={() => router.push(`/workout/${todayWorkout.id}`)}
+              style={[styles.workoutCard, { borderLeftColor: workoutColor }]}
             >
               <Badge
                 label={formatWorkoutType(todayWorkout.workout_type)}
-                color={workoutTypeColors[todayWorkout.workout_type] || colors.primary}
-                backgroundColor={`${workoutTypeColors[todayWorkout.workout_type] || colors.primary}20`}
+                color={workoutColor}
+                backgroundColor={withOpacity(workoutColor, 0.12)}
               />
-              <Typography variant="title2" style={{ marginTop: spacing.sm }}>
+              <Typography variant="title2" style={{ marginTop: spacing.md }}>
                 {todayWorkout.title}
               </Typography>
               {todayWorkout.description && (
-                <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>
+                <Typography variant="callout" color={colors.textSecondary} numberOfLines={2} style={{ marginTop: spacing.xs }}>
                   {todayWorkout.description}
                 </Typography>
               )}
@@ -224,71 +226,76 @@ export default function TodayScreen() {
                 onPress={handleStartWithFeelingCheck}
                 size="lg"
                 fullWidth
-                style={{ marginTop: spacing.lg }}
+                style={{ marginTop: spacing.xl }}
               />
-            </Card>
-          </View>
+            </Pressable>
+          </Animated.View>
         ) : (
-          <Card style={styles.restCard}>
-            <Typography variant="title2" align="center">
-              Rest Day
-            </Typography>
-            <Typography variant="body" color={colors.textSecondary} align="center" style={{ marginTop: spacing.sm }}>
-              Recovery is part of the plan. Your body builds strength while you rest.
-            </Typography>
-          </Card>
+          <Animated.View entering={FadeInDown.delay(250).duration(500)}>
+            <View style={styles.restCard}>
+              <Typography variant="title1" align="center" style={{ marginBottom: spacing.sm }}>
+                {'\uD83D\uDE34'}
+              </Typography>
+              <Typography variant="title3" align="center">
+                Rest Day
+              </Typography>
+              <Typography variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: spacing.sm }}>
+                Recovery is part of the plan.{'\n'}Your body builds strength while you rest.
+              </Typography>
+            </View>
+          </Animated.View>
         )}
 
-        {/* Instant Workout Button */}
-        <TouchableOpacity
-          style={styles.instantButton}
-          onPress={() => setShowInstantModal(true)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.instantIcon}>
-            <Typography variant="title3" color={colors.primary}>+</Typography>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Typography variant="callout" style={{ fontWeight: '600' }}>
-              Instant Workout
-            </Typography>
-            <Typography variant="caption1" color={colors.textSecondary}>
-              Quick session outside your plan
-            </Typography>
-          </View>
-        </TouchableOpacity>
+        {/* Instant Workout */}
+        <Animated.View entering={FadeInDown.delay(350).duration(400)}>
+          <TouchableOpacity
+            style={styles.instantButton}
+            onPress={() => setShowInstantModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.instantIcon}>
+              <Typography variant="title3" color={colors.primary}>+</Typography>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Typography variant="callout" style={{ fontWeight: '600' }}>
+                Instant Workout
+              </Typography>
+              <Typography variant="caption1" color={colors.textSecondary}>
+                Quick session outside your plan
+              </Typography>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
 
-        {/* Upcoming */}
-        <View style={styles.section}>
-          <Typography variant="headline" style={styles.sectionTitle}>
-            Coming Up
+        {/* Coming Up */}
+        <Animated.View entering={FadeInDown.delay(450).duration(400)} style={styles.section}>
+          <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>
+            COMING UP
           </Typography>
           {workouts
             .filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id)
             .slice(0, 3)
-            .map((workout) => (
-              <Card
+            .map((workout, idx) => (
+              <Pressable
                 key={workout.id}
                 style={styles.upcomingCard}
                 onPress={() => router.push(`/workout/${workout.id}`)}
               >
-                <View style={styles.upcomingRow}>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary },
-                    ]}
-                  />
-                  <View style={styles.upcomingText}>
-                    <Typography variant="callout">{workout.title}</Typography>
-                    <Typography variant="caption1" color={colors.textSecondary}>
-                      {formatDate(workout.scheduled_date)} · {formatWorkoutDuration(workout.estimated_duration_minutes)}
-                    </Typography>
-                  </View>
+                <View style={[styles.upcomingDot, { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary }]} />
+                <View style={styles.upcomingText}>
+                  <Typography variant="callout" style={{ fontWeight: '500' }}>{workout.title}</Typography>
+                  <Typography variant="caption1" color={colors.textTertiary}>
+                    {formatDate(workout.scheduled_date)} · {formatWorkoutDuration(workout.estimated_duration_minutes)}
+                  </Typography>
                 </View>
-              </Card>
+              </Pressable>
             ))}
-        </View>
+          {workouts.filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id).length === 0 && (
+            <Typography variant="callout" color={colors.textTertiary} style={{ paddingVertical: spacing.lg }}>
+              No upcoming workouts
+            </Typography>
+          )}
+        </Animated.View>
       </ScrollView>
 
       {/* Feeling Check Modal */}
@@ -392,127 +399,97 @@ export default function TodayScreen() {
       {/* Instant Workout Modal */}
       <Modal visible={showInstantModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+          <ScrollView style={{ maxHeight: '85%' }}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
 
-            {instantStep === 'type' && (
-              <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  What do you want to do?
-                </Typography>
-                {(['run', 'strength', 'recovery'] as InstantWorkoutCategory[]).map((cat) => {
-                  const items = WORKOUT_TYPE_OPTIONS.filter((o) => o.category === cat);
-                  return (
-                    <View key={cat} style={{ marginBottom: spacing.lg }}>
-                      <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', textTransform: 'uppercase', marginBottom: spacing.sm }}>
-                        {cat}
-                      </Typography>
-                      {items.map((opt) => (
-                        <TouchableOpacity
-                          key={opt.id}
-                          style={styles.instantTypeRow}
-                          onPress={() => {
-                            setInstantType(opt.id);
-                            setInstantStep('time');
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Typography variant="body">{opt.emoji}</Typography>
-                          <View style={{ flex: 1 }}>
-                            <Typography variant="callout" style={{ fontWeight: '500' }}>{opt.label}</Typography>
-                            <Typography variant="caption2" color={colors.textSecondary}>{opt.description}</Typography>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  );
-                })}
-              </>
-            )}
+              {instantStep === 'type' && (
+                <>
+                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
+                    What do you want to do?
+                  </Typography>
+                  {(['run', 'strength', 'recovery'] as InstantWorkoutCategory[]).map((cat) => {
+                    const items = WORKOUT_TYPE_OPTIONS.filter((o) => o.category === cat);
+                    return (
+                      <View key={cat} style={{ marginBottom: spacing.lg }}>
+                        <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm }}>
+                          {cat}
+                        </Typography>
+                        {items.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.id}
+                            style={styles.instantTypeRow}
+                            onPress={() => { setInstantType(opt.id); setInstantStep('time'); }}
+                            activeOpacity={0.7}
+                          >
+                            <Typography variant="body">{opt.emoji}</Typography>
+                            <View style={{ flex: 1 }}>
+                              <Typography variant="callout" style={{ fontWeight: '500' }}>{opt.label}</Typography>
+                              <Typography variant="caption2" color={colors.textSecondary}>{opt.description}</Typography>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </>
+              )}
 
-            {instantStep === 'time' && (
-              <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  How long?
-                </Typography>
-                <View style={styles.timeGrid}>
-                  {TIME_OPTIONS.map((opt) => (
-                    <TouchableOpacity
-                      key={opt.minutes}
-                      style={[styles.timeCard, instantTime === opt.minutes && styles.timeCardSelected]}
-                      onPress={() => {
-                        setInstantTime(opt.minutes);
-                        setInstantStep('intensity');
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Typography
-                        variant="title2"
-                        color={instantTime === opt.minutes ? colors.primary : colors.textPrimary}
-                        align="center"
+              {instantStep === 'time' && (
+                <>
+                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
+                    How long?
+                  </Typography>
+                  <View style={styles.timeGrid}>
+                    {TIME_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.minutes}
+                        style={[styles.timeCard, instantTime === opt.minutes && styles.timeCardSelected]}
+                        onPress={() => { setInstantTime(opt.minutes); setInstantStep('intensity'); }}
+                        activeOpacity={0.7}
                       >
-                        {opt.minutes}
-                      </Typography>
-                      <Typography variant="caption2" color={colors.textSecondary} align="center">min</Typography>
+                        <Typography variant="title2" color={instantTime === opt.minutes ? colors.primary : colors.textPrimary} align="center">
+                          {opt.minutes}
+                        </Typography>
+                        <Typography variant="caption2" color={colors.textSecondary} align="center">min</Typography>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Button title="Back" variant="ghost" onPress={() => setInstantStep('type')} fullWidth style={{ marginTop: spacing.md }} />
+                </>
+              )}
+
+              {instantStep === 'intensity' && (
+                <>
+                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
+                    How hard?
+                  </Typography>
+                  {([
+                    { id: 'easy' as IntensityLevel, label: 'Easy', desc: 'Relaxed effort', color: colors.success },
+                    { id: 'moderate' as IntensityLevel, label: 'Moderate', desc: 'Steady, purposeful', color: colors.warning },
+                    { id: 'hard' as IntensityLevel, label: 'Hard', desc: 'Push yourself', color: colors.error },
+                  ]).map((opt) => (
+                    <TouchableOpacity key={opt.id} style={styles.intensityRow} onPress={() => handleInstantWorkout(opt.id)} activeOpacity={0.7}>
+                      <View style={[styles.intensityDot, { backgroundColor: opt.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Typography variant="callout" style={{ fontWeight: '600' }}>{opt.label}</Typography>
+                        <Typography variant="caption2" color={colors.textSecondary}>{opt.desc}</Typography>
+                      </View>
                     </TouchableOpacity>
                   ))}
-                </View>
-                <Button
-                  title="Back"
-                  variant="ghost"
-                  onPress={() => setInstantStep('type')}
-                  fullWidth
-                  style={{ marginTop: spacing.md }}
-                />
-              </>
-            )}
+                  <Button title="Back" variant="ghost" onPress={() => setInstantStep('time')} fullWidth style={{ marginTop: spacing.md }} />
+                </>
+              )}
 
-            {instantStep === 'intensity' && (
-              <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  How hard?
-                </Typography>
-                {([
-                  { id: 'easy' as IntensityLevel, label: 'Easy', desc: 'Relaxed effort', color: colors.success },
-                  { id: 'moderate' as IntensityLevel, label: 'Moderate', desc: 'Steady, purposeful', color: colors.warning },
-                  { id: 'hard' as IntensityLevel, label: 'Hard', desc: 'Push yourself', color: colors.error },
-                ]).map((opt) => (
-                  <TouchableOpacity
-                    key={opt.id}
-                    style={styles.intensityRow}
-                    onPress={() => handleInstantWorkout(opt.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.intensityDot, { backgroundColor: opt.color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Typography variant="callout" style={{ fontWeight: '600' }}>{opt.label}</Typography>
-                      <Typography variant="caption2" color={colors.textSecondary}>{opt.desc}</Typography>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-                <Button
-                  title="Back"
-                  variant="ghost"
-                  onPress={() => setInstantStep('time')}
-                  fullWidth
-                  style={{ marginTop: spacing.md }}
-                />
-              </>
-            )}
-
-            <Button
-              title="Cancel"
-              variant="ghost"
-              onPress={() => {
-                setShowInstantModal(false);
-                setInstantStep('type');
-                setInstantType(null);
-                setInstantTime(null);
-              }}
-              fullWidth
-              style={{ marginTop: spacing.xs }}
-            />
-          </View>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={() => { setShowInstantModal(false); setInstantStep('type'); setInstantType(null); setInstantTime(null); }}
+                fullWidth
+                style={{ marginTop: spacing.xs }}
+              />
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -522,8 +499,8 @@ export default function TodayScreen() {
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metaItem}>
-      <Typography variant="caption1" color={colors.textTertiary}>{label}</Typography>
-      <Typography variant="headline">{value}</Typography>
+      <Typography variant="caption1" color={colors.textTertiary} style={{ letterSpacing: 0.5 }}>{label}</Typography>
+      <Typography variant="headline" style={{ marginTop: 2 }}>{value}</Typography>
     </View>
   );
 }
@@ -541,31 +518,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.massive,
   },
   header: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xl,
     marginBottom: spacing.xxl,
   },
   warningCard: {
     marginBottom: spacing.md,
-    backgroundColor: `${colors.warning}10`,
+    backgroundColor: 'rgba(251,191,36,0.06)',
     borderWidth: 1,
-    borderColor: `${colors.warning}30`,
-  },
-  warningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: 'rgba(251,191,36,0.15)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
   },
   adjustmentCard: {
     marginBottom: spacing.md,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
     borderWidth: 1,
-    borderColor: `${colors.primary}30`,
+    borderColor: 'rgba(34,211,238,0.15)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
   },
   weekCard: {
     marginBottom: spacing.xxl,
@@ -575,61 +553,73 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  weekBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(34,211,238,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   section: {
     marginBottom: spacing.xxl,
   },
-  sectionTitle: {
+  sectionLabel: {
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
     marginBottom: spacing.md,
   },
   workoutCard: {
+    ...glass.card,
     borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    borderLeftWidth: 3,
   },
   workoutMeta: {
     flexDirection: 'row',
-    marginTop: spacing.lg,
-    gap: spacing.xxl,
+    marginTop: spacing.xl,
+    gap: spacing.xxxl,
   },
   metaItem: {
-    gap: spacing.xs,
+    gap: 2,
   },
   restCard: {
+    ...glass.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xxxl,
     marginBottom: spacing.xxl,
-    paddingVertical: spacing.xxxl,
+    alignItems: 'center',
   },
-  // Instant Workout Button
   instantButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.xxl,
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderStyle: 'dashed',
   },
   instantIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: `${colors.primary}15`,
+    backgroundColor: 'rgba(34,211,238,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Upcoming
   upcomingCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.md,
-  },
-  upcomingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  upcomingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: spacing.md,
   },
   upcomingText: {
@@ -638,40 +628,35 @@ const styles = StyleSheet.create({
   // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: '#0A0A0A',
     borderTopLeftRadius: borderRadius.xxl,
     borderTopRightRadius: borderRadius.xxl,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.huge,
     paddingTop: spacing.md,
-    maxHeight: '85%',
   },
   modalHandle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignSelf: 'center',
     marginBottom: spacing.xl,
   },
-  // Feeling
   feelingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
   feelingCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
     flexGrow: 1,
     flexBasis: '45%',
   },
@@ -682,24 +667,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   issueChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
-  // Instant Workout
   instantTypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   timeGrid: {
     flexDirection: 'row',
@@ -710,15 +692,13 @@ const styles = StyleSheet.create({
   timeCard: {
     width: 80,
     paddingVertical: spacing.xl,
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   timeCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
   intensityRow: {
     flexDirection: 'row',
@@ -726,7 +706,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   intensityDot: {
     width: 12,

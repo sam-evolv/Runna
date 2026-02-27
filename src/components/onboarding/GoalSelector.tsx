@@ -49,15 +49,15 @@ const styles = StyleSheet.create({
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   selected: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
   icon: {
     width: 48,

@@ -1,61 +1,102 @@
 import React, { useState } from 'react';
 import { View, TextInput, StyleSheet, TextInputProps, ViewStyle } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+} from 'react-native-reanimated';
 import { Typography } from './Typography';
-import { colors, spacing, borderRadius, typography } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, animation } from '@/constants/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   helper?: string;
-  containerStyle?: ViewStyle;
   suffix?: string;
+  containerStyle?: ViewStyle;
 }
+
+const AnimatedView = Animated.View;
 
 export function Input({
   label,
   error,
   helper,
-  containerStyle,
   suffix,
+  containerStyle,
   style,
   ...props
 }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const focusAnim = useSharedValue(0);
+  const shakeAnim = useSharedValue(0);
+
+  const handleFocus = () => {
+    setFocused(true);
+    focusAnim.value = withTiming(1, { duration: animation.normal });
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    focusAnim.value = withTiming(0, { duration: animation.normal });
+  };
+
+  React.useEffect(() => {
+    if (error) {
+      shakeAnim.value = withSequence(
+        withTiming(-6, { duration: 50 }),
+        withTiming(6, { duration: 50 }),
+        withTiming(-4, { duration: 50 }),
+        withTiming(4, { duration: 50 }),
+        withTiming(0, { duration: 50 }),
+      );
+    }
+  }, [error]);
+
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    borderColor: error
+      ? colors.error
+      : focusAnim.value > 0.5
+      ? colors.primary
+      : 'rgba(255,255,255,0.08)',
+    backgroundColor: focusAnim.value > 0.5 ? 'rgba(34,211,238,0.04)' : 'rgba(255,255,255,0.04)',
+    transform: [{ translateX: shakeAnim.value }],
+  }));
 
   return (
     <View style={containerStyle}>
       {label && (
-        <Typography variant="subheadline" color={colors.textSecondary} style={styles.label}>
+        <Typography
+          variant="caption1"
+          color={error ? colors.error : colors.textSecondary}
+          style={styles.label}
+        >
           {label}
         </Typography>
       )}
-      <View style={[styles.inputContainer, focused && styles.focused, error ? styles.error : undefined]}>
+      <AnimatedView style={[styles.inputContainer, animatedContainerStyle]}>
         <TextInput
           style={[styles.input, style]}
           placeholderTextColor={colors.textTertiary}
-          onFocus={(e) => {
-            setFocused(true);
-            props.onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            setFocused(false);
-            props.onBlur?.(e);
-          }}
+          selectionColor={colors.primary}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           {...props}
         />
         {suffix && (
-          <Typography variant="callout" color={colors.textSecondary} style={styles.suffix}>
+          <Typography variant="callout" color={colors.textTertiary} style={styles.suffix}>
             {suffix}
           </Typography>
         )}
-      </View>
+      </AnimatedView>
       {error && (
-        <Typography variant="caption1" color={colors.error} style={styles.helper}>
+        <Typography variant="caption2" color={colors.error} style={styles.helper}>
           {error}
         </Typography>
       )}
-      {helper && !error && (
-        <Typography variant="caption1" color={colors.textTertiary} style={styles.helper}>
+      {!error && helper && (
+        <Typography variant="caption2" color={colors.textTertiary} style={styles.helper}>
           {helper}
         </Typography>
       )}
@@ -65,35 +106,31 @@ export function Input({
 
 const styles = StyleSheet.create({
   label: {
+    fontWeight: '600',
     marginBottom: spacing.xs,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  focused: {
-    borderColor: colors.primary,
-  },
-  error: {
-    borderColor: colors.error,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    minHeight: 48,
+    overflow: 'hidden',
   },
   input: {
     flex: 1,
     color: colors.textPrimary,
-    ...typography.body,
+    fontSize: 16,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    minHeight: 48,
   },
   suffix: {
     paddingRight: spacing.lg,
   },
   helper: {
     marginTop: spacing.xs,
-    paddingLeft: spacing.xs,
+    marginLeft: spacing.xs,
   },
 });

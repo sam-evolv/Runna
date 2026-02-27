@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { usePlan } from '@/hooks/usePlan';
 import {
   getStrategyOptions,
@@ -15,11 +17,10 @@ import {
 } from '@/services/holidayMode';
 import {
   calculateBRaceAdjustment,
-  getDistanceLabel,
   type RaceDistance,
   type RaceEffort,
 } from '@/services/bRaceSupport';
-import { colors, spacing, borderRadius, workoutTypeColors } from '@/constants/theme';
+import { colors, spacing, borderRadius, workoutTypeColors, glass } from '@/constants/theme';
 import { formatWorkoutType, formatWorkoutDuration } from '@/utils/formatters';
 import { dayName } from '@/utils/dateUtils';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -44,14 +45,12 @@ export default function PlanScreen() {
   const { plan, workouts, getWorkoutsForWeek, isLoading } = usePlan();
   const [selectedWeek, setSelectedWeek] = useState(plan?.current_week ?? 1);
 
-  // Holiday mode
   const [showHoliday, setShowHoliday] = useState(false);
   const [holidayStart, setHolidayStart] = useState('');
   const [holidayEnd, setHolidayEnd] = useState('');
   const [holidayStrategy, setHolidayStrategy] = useState<RealignmentStrategy | null>(null);
   const [holidayResult, setHolidayResult] = useState<string | null>(null);
 
-  // B-Race
   const [showBRace, setShowBRace] = useState(false);
   const [bRaceStep, setBRaceStep] = useState<'name' | 'distance' | 'effort' | 'result'>('name');
   const [bRaceName, setBRaceName] = useState('');
@@ -63,12 +62,12 @@ export default function PlanScreen() {
   if (!plan) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.emptyState}>
-          <Typography variant="title2" align="center">No Active Plan</Typography>
-          <Typography variant="body" color={colors.textSecondary} align="center" style={{ marginTop: spacing.md }}>
-            Complete the onboarding to generate your personalised training plan.
-          </Typography>
-        </View>
+        <EmptyState
+          icon={'\uD83D\uDCC5'}
+          title="No Active Plan"
+          message="Complete the onboarding to generate your personalised training plan."
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
       </SafeAreaView>
     );
   }
@@ -105,12 +104,13 @@ export default function PlanScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      {/* Header */}
+      <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
         <Typography variant="largeTitle">Your Plan</Typography>
-        <Typography variant="callout" color={colors.textSecondary}>
+        <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: 2 }}>
           {plan.name}
         </Typography>
-      </View>
+      </Animated.View>
 
       {/* Week selector */}
       <ScrollView
@@ -125,7 +125,7 @@ export default function PlanScreen() {
           const isSelected = week === selectedWeek;
 
           return (
-            <TouchableOpacity
+            <Pressable
               key={week}
               onPress={() => setSelectedWeek(week)}
               style={[
@@ -136,7 +136,7 @@ export default function PlanScreen() {
             >
               <Typography
                 variant="caption2"
-                color={isSelected ? colors.textPrimary : colors.textSecondary}
+                color={isSelected ? colors.textInverse : isCurrentWeek ? colors.primary : colors.textSecondary}
                 style={{ fontWeight: '600' }}
               >
                 W{week}
@@ -148,13 +148,13 @@ export default function PlanScreen() {
                       key={w.id}
                       style={[
                         styles.miniDot,
-                        { backgroundColor: w.status === 'completed' ? colors.success : colors.surfaceElevated },
+                        { backgroundColor: w.status === 'completed' ? colors.success : 'rgba(255,255,255,0.15)' },
                       ]}
                     />
                   ))}
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -162,105 +162,79 @@ export default function PlanScreen() {
       {/* Week content */}
       <ScrollView contentContainerStyle={styles.weekContent} showsVerticalScrollIndicator={false}>
         <View style={styles.weekHeaderRow}>
-          <Typography variant="title3">Week {selectedWeek}</Typography>
-          <Typography variant="callout" color={colors.textSecondary}>
-            {completedCount}/{weekWorkouts.length} completed
-          </Typography>
+          <View>
+            <Typography variant="title3">Week {selectedWeek}</Typography>
+            {plan.plan_data.weeks[selectedWeek - 1]?.theme && (
+              <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '600', marginTop: 2 }}>
+                {plan.plan_data.weeks[selectedWeek - 1].theme}
+              </Typography>
+            )}
+          </View>
+          <View style={styles.completionBadge}>
+            <Typography variant="caption1" color={colors.textSecondary}>
+              {completedCount}/{weekWorkouts.length}
+            </Typography>
+          </View>
         </View>
 
-        {plan.plan_data.weeks[selectedWeek - 1]?.theme && (
-          <Typography variant="footnote" color={colors.primary} style={styles.weekTheme}>
-            {plan.plan_data.weeks[selectedWeek - 1].theme}
-          </Typography>
-        )}
-
-        {/* Holiday / B-Race result feedback */}
+        {/* Feedback */}
         {holidayResult && (
-          <Card style={styles.feedbackCard}>
-            <Typography variant="footnote" color={colors.primary}>{holidayResult}</Typography>
-            <TouchableOpacity onPress={() => setHolidayResult(null)}>
-              <Typography variant="caption2" color={colors.textTertiary}>Dismiss</Typography>
-            </TouchableOpacity>
-          </Card>
+          <Pressable onPress={() => setHolidayResult(null)} style={styles.feedbackCard}>
+            <Typography variant="footnote" color={colors.primary} style={{ flex: 1 }}>{holidayResult}</Typography>
+            <Typography variant="caption2" color={colors.textTertiary}>Dismiss</Typography>
+          </Pressable>
         )}
 
         {weekWorkouts.length === 0 && (
-          <Typography variant="body" color={colors.textSecondary}>
+          <Typography variant="body" color={colors.textSecondary} style={{ paddingVertical: spacing.xl }}>
             No workouts scheduled for this week.
           </Typography>
         )}
 
-        {weekWorkouts.map((workout) => (
-          <Card
-            key={workout.id}
-            style={[
-              styles.workoutCard,
-              workout.status === 'completed' && styles.workoutCompleted,
-            ]}
-            onPress={() => router.push(`/workout/${workout.id}`)}
-          >
-            <View style={styles.workoutRow}>
-              <View
-                style={[
-                  styles.dayIndicator,
-                  { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary },
-                ]}
-              />
-              <View style={styles.workoutInfo}>
-                <View style={styles.workoutTop}>
-                  <Typography variant="caption1" color={colors.textTertiary}>
-                    {dayName(workout.day_of_week)}
-                  </Typography>
-                  {workout.status === 'completed' && (
-                    <Badge label="Done" color={colors.success} backgroundColor={`${colors.success}20`} />
-                  )}
-                  {workout.status === 'skipped' && (
-                    <Badge label="Skipped" color={colors.textTertiary} />
-                  )}
-                </View>
-                <Typography variant="headline" style={{ marginTop: 2 }}>
-                  {workout.title}
-                </Typography>
-                <View style={styles.workoutDetails}>
-                  <Typography variant="caption1" color={colors.textSecondary}>
-                    {formatWorkoutType(workout.workout_type)}
-                  </Typography>
-                  <Typography variant="caption1" color={colors.textTertiary}> · </Typography>
-                  <Typography variant="caption1" color={colors.textSecondary}>
-                    {formatWorkoutDuration(workout.estimated_duration_minutes)}
-                  </Typography>
+        {weekWorkouts.map((workout, idx) => (
+          <Animated.View key={workout.id} entering={FadeInDown.delay(idx * 50).duration(350)}>
+            <Pressable
+              style={[styles.workoutCard, workout.status === 'completed' && styles.workoutCompleted]}
+              onPress={() => router.push(`/workout/${workout.id}`)}
+            >
+              <View style={styles.workoutRow}>
+                <View style={[styles.dayIndicator, { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary }]} />
+                <View style={styles.workoutInfo}>
+                  <View style={styles.workoutTop}>
+                    <Typography variant="caption1" color={colors.textTertiary}>{dayName(workout.day_of_week)}</Typography>
+                    {workout.status === 'completed' && (
+                      <Badge label="Done" color={colors.success} backgroundColor="rgba(52,211,153,0.12)" />
+                    )}
+                    {workout.status === 'skipped' && (
+                      <Badge label="Skipped" color={colors.textTertiary} />
+                    )}
+                  </View>
+                  <Typography variant="headline" style={{ marginTop: 2 }}>{workout.title}</Typography>
+                  <View style={styles.workoutDetails}>
+                    <Typography variant="caption1" color={colors.textSecondary}>{formatWorkoutType(workout.workout_type)}</Typography>
+                    <Typography variant="caption1" color={colors.textTertiary}> · </Typography>
+                    <Typography variant="caption1" color={colors.textSecondary}>{formatWorkoutDuration(workout.estimated_duration_minutes)}</Typography>
+                  </View>
                 </View>
               </View>
-            </View>
-          </Card>
+            </Pressable>
+          </Animated.View>
         ))}
 
         {/* Plan Actions */}
         <View style={styles.planActions}>
-          <TouchableOpacity
-            style={styles.planActionRow}
-            onPress={() => setShowHoliday(true)}
-            activeOpacity={0.7}
-          >
-            <Typography variant="body">✈️</Typography>
+          <TouchableOpacity style={styles.planActionRow} onPress={() => setShowHoliday(true)} activeOpacity={0.7}>
+            <Typography variant="body">{'\u2708\uFE0F'}</Typography>
             <View style={{ flex: 1 }}>
               <Typography variant="callout" style={{ fontWeight: '500' }}>Going on Holiday?</Typography>
-              <Typography variant="caption2" color={colors.textTertiary}>
-                Pause or adjust your plan while you're away
-              </Typography>
+              <Typography variant="caption2" color={colors.textTertiary}>Pause or adjust your plan</Typography>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.planActionRow}
-            onPress={() => setShowBRace(true)}
-            activeOpacity={0.7}
-          >
-            <Typography variant="body">🏁</Typography>
+          <TouchableOpacity style={styles.planActionRow} onPress={() => setShowBRace(true)} activeOpacity={0.7}>
+            <Typography variant="body">{'\uD83C\uDFC1'}</Typography>
             <View style={{ flex: 1 }}>
               <Typography variant="callout" style={{ fontWeight: '500' }}>Add a B-Race</Typography>
-              <Typography variant="caption2" color={colors.textTertiary}>
-                Add a secondary race with automatic taper/recovery
-              </Typography>
+              <Typography variant="caption2" color={colors.textTertiary}>Secondary race with auto taper</Typography>
             </View>
           </TouchableOpacity>
         </View>
@@ -272,86 +246,40 @@ export default function PlanScreen() {
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHandle} />
-              <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>
-                Holiday Mode
-              </Typography>
+              <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>Holiday Mode</Typography>
               <Typography variant="footnote" color={colors.textSecondary} align="center" style={{ marginBottom: spacing.xl }}>
-                Tell us when you'll be away and we'll adjust your plan
+                Tell us when you'll be away
               </Typography>
 
-              <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
-                START DATE (YYYY-MM-DD)
-              </Typography>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-03-15"
-                placeholderTextColor={colors.textTertiary}
-                value={holidayStart}
-                onChangeText={setHolidayStart}
-              />
+              <Typography variant="caption1" color={colors.textTertiary} style={styles.inputLabel}>START DATE (YYYY-MM-DD)</Typography>
+              <TextInput style={styles.input} placeholder="2026-03-15" placeholderTextColor={colors.textTertiary} value={holidayStart} onChangeText={setHolidayStart} />
 
-              <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs, marginTop: spacing.sm }}>
-                END DATE (YYYY-MM-DD)
-              </Typography>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-03-22"
-                placeholderTextColor={colors.textTertiary}
-                value={holidayEnd}
-                onChangeText={setHolidayEnd}
-              />
+              <Typography variant="caption1" color={colors.textTertiary} style={[styles.inputLabel, { marginTop: spacing.sm }]}>END DATE (YYYY-MM-DD)</Typography>
+              <TextInput style={styles.input} placeholder="2026-03-22" placeholderTextColor={colors.textTertiary} value={holidayEnd} onChangeText={setHolidayEnd} />
 
               {daysAway > 0 && (
                 <>
-                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.sm, marginTop: spacing.lg }}>
-                    STRATEGY
-                  </Typography>
+                  <Typography variant="caption1" color={colors.textTertiary} style={[styles.inputLabel, { marginTop: spacing.lg }]}>STRATEGY</Typography>
                   {strategyOptions.map((opt) => (
                     <TouchableOpacity
                       key={opt.id}
-                      style={[
-                        styles.strategyCard,
-                        holidayStrategy === opt.id && styles.strategyCardSelected,
-                      ]}
+                      style={[styles.strategyCard, holidayStrategy === opt.id && styles.strategyCardSelected]}
                       onPress={() => setHolidayStrategy(opt.id)}
                       activeOpacity={0.7}
                     >
                       <View style={styles.strategyHeader}>
                         <Typography variant="body">{opt.emoji}</Typography>
-                        <Typography variant="callout" style={{ fontWeight: '600', flex: 1 }}>
-                          {opt.label}
-                        </Typography>
-                        {opt.recommended && (
-                          <Badge label="Recommended" color={colors.success} backgroundColor={`${colors.success}20`} />
-                        )}
+                        <Typography variant="callout" style={{ fontWeight: '600', flex: 1 }}>{opt.label}</Typography>
+                        {opt.recommended && <Badge label="Best" color={colors.success} backgroundColor="rgba(52,211,153,0.12)" />}
                       </View>
-                      <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>
-                        {opt.description}
-                      </Typography>
+                      <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>{opt.description}</Typography>
                     </TouchableOpacity>
                   ))}
                 </>
               )}
 
-              <Button
-                title="Apply"
-                onPress={handleHolidayConfirm}
-                fullWidth
-                disabled={!holidayStart || !holidayEnd || !holidayStrategy}
-                style={{ marginTop: spacing.lg }}
-              />
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => {
-                  setShowHoliday(false);
-                  setHolidayStart('');
-                  setHolidayEnd('');
-                  setHolidayStrategy(null);
-                }}
-                fullWidth
-                style={{ marginTop: spacing.sm }}
-              />
+              <Button title="Apply" onPress={handleHolidayConfirm} fullWidth disabled={!holidayStart || !holidayEnd || !holidayStrategy} style={{ marginTop: spacing.lg }} />
+              <Button title="Cancel" variant="ghost" onPress={() => { setShowHoliday(false); setHolidayStart(''); setHolidayEnd(''); setHolidayStrategy(null); }} fullWidth style={{ marginTop: spacing.sm }} />
             </View>
           </ScrollView>
         </View>
@@ -365,89 +293,39 @@ export default function PlanScreen() {
 
             {bRaceStep === 'name' && (
               <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  Add a B-Race
-                </Typography>
-                <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
-                  RACE NAME
-                </Typography>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Cork City 10K"
-                  placeholderTextColor={colors.textTertiary}
-                  value={bRaceName}
-                  onChangeText={setBRaceName}
-                />
-                <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', marginBottom: spacing.xs, marginTop: spacing.sm }}>
-                  RACE DATE (YYYY-MM-DD)
-                </Typography>
-                <TextInput
-                  style={styles.input}
-                  placeholder="2026-04-12"
-                  placeholderTextColor={colors.textTertiary}
-                  value={bRaceDate}
-                  onChangeText={setBRaceDate}
-                />
-                <Button
-                  title="Next"
-                  onPress={() => setBRaceStep('distance')}
-                  fullWidth
-                  disabled={!bRaceName.trim() || !bRaceDate.trim()}
-                  style={{ marginTop: spacing.lg }}
-                />
+                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>Add a B-Race</Typography>
+                <Typography variant="caption1" color={colors.textTertiary} style={styles.inputLabel}>RACE NAME</Typography>
+                <TextInput style={styles.input} placeholder="e.g. Cork City 10K" placeholderTextColor={colors.textTertiary} value={bRaceName} onChangeText={setBRaceName} />
+                <Typography variant="caption1" color={colors.textTertiary} style={[styles.inputLabel, { marginTop: spacing.sm }]}>RACE DATE (YYYY-MM-DD)</Typography>
+                <TextInput style={styles.input} placeholder="2026-04-12" placeholderTextColor={colors.textTertiary} value={bRaceDate} onChangeText={setBRaceDate} />
+                <Button title="Next" onPress={() => setBRaceStep('distance')} fullWidth disabled={!bRaceName.trim() || !bRaceDate.trim()} style={{ marginTop: spacing.lg }} />
               </>
             )}
 
             {bRaceStep === 'distance' && (
               <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  Race Distance
-                </Typography>
+                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>Race Distance</Typography>
                 <View style={styles.distanceGrid}>
                   {RACE_DISTANCES.map((d) => (
                     <TouchableOpacity
                       key={d.id}
                       style={[styles.distanceCard, bRaceDistance === d.id && styles.distanceCardSelected]}
-                      onPress={() => {
-                        setBRaceDistance(d.id);
-                        setBRaceStep('effort');
-                      }}
+                      onPress={() => { setBRaceDistance(d.id); setBRaceStep('effort'); }}
                       activeOpacity={0.7}
                     >
-                      <Typography
-                        variant="callout"
-                        color={bRaceDistance === d.id ? colors.primary : colors.textPrimary}
-                        style={{ fontWeight: '600' }}
-                      >
-                        {d.label}
-                      </Typography>
+                      <Typography variant="callout" color={bRaceDistance === d.id ? colors.primary : colors.textPrimary} style={{ fontWeight: '600' }}>{d.label}</Typography>
                     </TouchableOpacity>
                   ))}
                 </View>
-                <Button
-                  title="Back"
-                  variant="ghost"
-                  onPress={() => setBRaceStep('name')}
-                  fullWidth
-                  style={{ marginTop: spacing.md }}
-                />
+                <Button title="Back" variant="ghost" onPress={() => setBRaceStep('name')} fullWidth style={{ marginTop: spacing.md }} />
               </>
             )}
 
             {bRaceStep === 'effort' && (
               <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                  How hard will you race?
-                </Typography>
+                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>How hard?</Typography>
                 {RACE_EFFORTS.map((e) => (
-                  <TouchableOpacity
-                    key={e.id}
-                    style={styles.effortRow}
-                    onPress={() => {
-                      handleBRaceConfirm(e.id);
-                    }}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity key={e.id} style={styles.effortRow} onPress={() => handleBRaceConfirm(e.id)} activeOpacity={0.7}>
                     <View style={[styles.effortDot, { backgroundColor: e.color }]} />
                     <View style={{ flex: 1 }}>
                       <Typography variant="callout" style={{ fontWeight: '600' }}>{e.label}</Typography>
@@ -455,58 +333,22 @@ export default function PlanScreen() {
                     </View>
                   </TouchableOpacity>
                 ))}
-                <Button
-                  title="Back"
-                  variant="ghost"
-                  onPress={() => setBRaceStep('distance')}
-                  fullWidth
-                  style={{ marginTop: spacing.md }}
-                />
+                <Button title="Back" variant="ghost" onPress={() => setBRaceStep('distance')} fullWidth style={{ marginTop: spacing.md }} />
               </>
             )}
 
             {bRaceStep === 'result' && bRaceResult && (
               <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.md }}>
-                  Plan Adjusted
-                </Typography>
-                <Card style={{ backgroundColor: `${colors.primary}10`, borderWidth: 1, borderColor: `${colors.primary}20` }}>
-                  <Typography variant="footnote" color={colors.primary}>
-                    {bRaceResult}
-                  </Typography>
-                </Card>
-                <Button
-                  title="Done"
-                  onPress={() => {
-                    setShowBRace(false);
-                    setBRaceStep('name');
-                    setBRaceName('');
-                    setBRaceDate('');
-                    setBRaceDistance(null);
-                    setBRaceEffort(null);
-                    setBRaceResult(null);
-                  }}
-                  fullWidth
-                  style={{ marginTop: spacing.xl }}
-                />
+                <Typography variant="title3" align="center" style={{ marginBottom: spacing.md }}>Plan Adjusted</Typography>
+                <View style={styles.resultCard}>
+                  <Typography variant="footnote" color={colors.primary}>{bRaceResult}</Typography>
+                </View>
+                <Button title="Done" onPress={() => { setShowBRace(false); setBRaceStep('name'); setBRaceName(''); setBRaceDate(''); setBRaceDistance(null); setBRaceEffort(null); setBRaceResult(null); }} fullWidth style={{ marginTop: spacing.xl }} />
               </>
             )}
 
             {bRaceStep !== 'result' && (
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => {
-                  setShowBRace(false);
-                  setBRaceStep('name');
-                  setBRaceName('');
-                  setBRaceDate('');
-                  setBRaceDistance(null);
-                  setBRaceEffort(null);
-                }}
-                fullWidth
-                style={{ marginTop: spacing.xs }}
-              />
+              <Button title="Cancel" variant="ghost" onPress={() => { setShowBRace(false); setBRaceStep('name'); setBRaceName(''); setBRaceDate(''); setBRaceDistance(null); setBRaceEffort(null); }} fullWidth style={{ marginTop: spacing.xs }} />
             )}
           </View>
         </View>
@@ -521,34 +363,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   weekSelector: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
     gap: spacing.sm,
   },
   weekPill: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     alignItems: 'center',
     minWidth: 44,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   weekPillSelected: {
     backgroundColor: colors.primary,
   },
   weekPillCurrent: {
-    borderWidth: 1,
     borderColor: colors.primary,
   },
   weekDots: {
@@ -562,41 +399,48 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   weekContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.massive,
   },
   weekHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  weekTheme: {
+    alignItems: 'flex-start',
     marginBottom: spacing.lg,
-    fontWeight: '600',
+  },
+  completionBadge: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
   },
   feedbackCard: {
     marginBottom: spacing.md,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
     borderWidth: 1,
-    borderColor: `${colors.primary}20`,
+    borderColor: 'rgba(34,211,238,0.12)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
   },
   workoutCard: {
-    marginBottom: spacing.sm,
+    ...glass.card,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   workoutCompleted: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   workoutRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
   },
   dayIndicator: {
-    width: 4,
+    width: 3,
     borderRadius: 2,
     marginRight: spacing.md,
   },
@@ -612,32 +456,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: spacing.xs,
   },
-  // Plan actions
   planActions: {
-    marginTop: spacing.xl,
+    marginTop: spacing.xxl,
     gap: spacing.sm,
   },
   planActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  // Modal
+  // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: colors.background,
+    backgroundColor: '#0A0A0A',
     borderTopLeftRadius: borderRadius.xxl,
     borderTopRightRadius: borderRadius.xxl,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.huge,
     paddingTop: spacing.md,
     maxHeight: '85%',
@@ -646,40 +487,39 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignSelf: 'center',
     marginBottom: spacing.xl,
   },
+  inputLabel: {
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
   input: {
-    backgroundColor: colors.surface,
+    ...glass.input,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     color: colors.textPrimary,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.sm,
   },
-  // Holiday
   strategyCard: {
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   strategyCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
   strategyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  // B-Race
   distanceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -689,14 +529,12 @@ const styles = StyleSheet.create({
   distanceCard: {
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.xxl,
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   distanceCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: `${colors.primary}10`,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
   effortRow: {
     flexDirection: 'row',
@@ -704,11 +542,18 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
   },
   effortDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  resultCard: {
+    backgroundColor: 'rgba(34,211,238,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,211,238,0.12)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
   },
 });
