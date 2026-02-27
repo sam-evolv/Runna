@@ -40,7 +40,7 @@ export function PaceZoneIndicator({ currentPace, targetPace, style }: PaceZoneIn
 
   return (
     <View style={[styles.container, style]}>
-      <View style={[styles.indicator, { backgroundColor: `${statusColor}20`, borderColor: statusColor }]}>
+      <View style={[styles.indicator, { backgroundColor: `${statusColor}10`, borderColor: `${statusColor}30` }]}>
         <Typography variant="callout" color={statusColor} align="center" style={{ fontWeight: '600' }}>
           {statusText}
         </Typography>

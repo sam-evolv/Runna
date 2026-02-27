@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import Animated, { FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import {
+  colors,
+  spacing,
+  borderRadius,
+  glass,
+  animation,
+  shadows,
+  withOpacity,
+} from '@/constants/theme';
 import type { ExerciseSet } from '@/types/workout';
 import type { CompletedSet } from '@/types/activity';
 
@@ -37,29 +46,50 @@ export function SetLogger({ sets, completedSets, onLogSet }: SetLoggerProps) {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Completed sets */}
+    <Animated.View
+      entering={FadeInDown.duration(animation.entrance).springify().damping(18)}
+      style={styles.container}
+    >
+      {/* Set rows */}
       {sets.map((set, idx) => {
         const completed = completedSets[idx];
         const isCurrent = idx === currentSetIndex;
 
         return (
-          <View
+          <Animated.View
             key={idx}
+            entering={FadeInDown.delay(idx * 40).duration(animation.entrance).springify().damping(20)}
             style={[
               styles.setRow,
               completed && styles.setCompleted,
               isCurrent && styles.setCurrent,
             ]}
           >
+            {/* Current set left accent */}
+            {isCurrent && (
+              <View style={styles.currentAccent} />
+            )}
+
             <View style={styles.setNumber}>
-              <Typography
-                variant="callout"
-                color={completed ? colors.success : isCurrent ? colors.primary : colors.textTertiary}
-                style={{ fontWeight: '700' }}
-              >
-                {completed ? '✓' : idx + 1}
-              </Typography>
+              {completed ? (
+                <Animated.View entering={ZoomIn.duration(animation.normal)}>
+                  <Typography
+                    variant="callout"
+                    color={colors.success}
+                    style={{ fontWeight: '700' }}
+                  >
+                    {'✓'}
+                  </Typography>
+                </Animated.View>
+              ) : (
+                <Typography
+                  variant="callout"
+                  color={isCurrent ? colors.primary : colors.textTertiary}
+                  style={{ fontWeight: '700' }}
+                >
+                  {idx + 1}
+                </Typography>
+              )}
             </View>
 
             <View style={styles.setDetail}>
@@ -81,13 +111,19 @@ export function SetLogger({ sets, completedSets, onLogSet }: SetLoggerProps) {
                 {set.type}
               </Typography>
             </View>
-          </View>
+          </Animated.View>
         );
       })}
 
       {/* Log current set */}
       {!isComplete && currentTargetSet && (
-        <View style={styles.logSection}>
+        <Animated.View
+          entering={FadeInDown.delay(sets.length * 40 + 100).duration(animation.entrance).springify().damping(18)}
+          style={styles.logSection}
+        >
+          {/* Top edge glow */}
+          <View style={styles.logSectionGlow} />
+
           <Typography variant="headline" style={styles.logTitle}>
             Set {currentSetIndex + 1}
           </Typography>
@@ -113,17 +149,21 @@ export function SetLogger({ sets, completedSets, onLogSet }: SetLoggerProps) {
             size="lg"
             fullWidth
           />
-        </View>
+        </Animated.View>
       )}
 
       {isComplete && (
-        <View style={styles.allDone}>
+        <Animated.View
+          entering={ZoomIn.duration(animation.entrance).springify().damping(14)}
+          style={styles.allDone}
+        >
+          <View style={styles.allDoneGlow} />
           <Typography variant="headline" color={colors.success} align="center">
             All sets completed!
           </Typography>
-        </View>
+        </Animated.View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -136,18 +176,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.md,
     marginBottom: 2,
+    ...glass.card,
+    overflow: 'hidden',
   },
   setCompleted: {
     opacity: 0.5,
   },
   setCurrent: {
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  currentAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: withOpacity(colors.primary, 0.6),
+    borderTopLeftRadius: borderRadius.md,
+    borderBottomLeftRadius: borderRadius.md,
   },
   setNumber: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
@@ -161,9 +216,19 @@ const styles = StyleSheet.create({
   },
   logSection: {
     marginTop: spacing.lg,
-    backgroundColor: colors.surface,
+    ...glass.card,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
+    ...shadows.md,
+    overflow: 'hidden',
+  },
+  logSectionGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   logTitle: {
     marginBottom: spacing.md,
@@ -177,6 +242,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   allDone: {
+    ...glass.card,
+    borderRadius: borderRadius.lg,
     padding: spacing.xxl,
+    marginTop: spacing.lg,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  allDoneGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: withOpacity(colors.success, 0.2),
   },
 });

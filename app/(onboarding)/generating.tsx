@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import { usePlanStore } from '@/stores/planStore';
 import { parseTimeToSeconds } from '@/utils/paceCalculator';
@@ -30,6 +32,7 @@ export default function GeneratingScreen() {
   const [messageIndex, setMessageIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [hasStarted, setHasStarted] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -39,12 +42,21 @@ export default function GeneratingScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
+  const generate = useCallback(async () => {
     if (!user) return;
+    setError('');
+    setHasStarted(true);
 
-    const generate = async () => {
-      const availableDays = JSON.parse((params.availableDays as string) || '[]');
-      const longSessionDay = params.longSessionDay ? Number(params.longSessionDay) : null;
+    try {
+      let availableDays: number[] = [];
+      try {
+        availableDays = JSON.parse((params.availableDays as string) || '[]');
+      } catch {
+        availableDays = [];
+      }
+      const longSessionDay = params.longSessionDay && params.longSessionDay !== ''
+        ? Number(params.longSessionDay)
+        : null;
 
       const goalData = {
         goal_type: params.goalType as GoalType,
@@ -75,7 +87,7 @@ export default function GeneratingScreen() {
         notes: null,
       };
 
-      // Update user profile
+      // Update user profile first, then use fresh user for plan generation
       const profileUpdates: Record<string, unknown> = {};
       if (params.weight) profileUpdates.weight_kg = Number(params.weight);
       if (params.height) profileUpdates.height_cm = Number(params.height);
@@ -89,7 +101,14 @@ export default function GeneratingScreen() {
         await useAuthStore.getState().updateProfile(profileUpdates as any);
       }
 
-      const result = await createGoalAndGeneratePlan(user, goalData as any, statsData as any);
+      // Get fresh user from store AFTER profile update so AI has correct weight/height/age
+      const freshUser = useAuthStore.getState().user;
+      if (!freshUser) {
+        setError('User session expired. Please sign in again.');
+        return;
+      }
+
+      const result = await createGoalAndGeneratePlan(freshUser, goalData as any, statsData as any);
 
       if (result.error) {
         setError(result.error);
@@ -98,36 +117,88 @@ export default function GeneratingScreen() {
         setOnboarded(true);
         setTimeout(() => {
           router.replace('/(tabs)/today');
-        }, 500);
+        }, 600);
       }
-    };
+    } catch (err) {
+      setError((err as Error).message || 'Something went wrong. Please try again.');
+    }
+  }, [user?.id, params]);
 
-    generate();
+  useEffect(() => {
+    if (!hasStarted && user) {
+      generate();
+    }
   }, [user?.id]);
+
+  const handleRetry = () => {
+    setProgress(0);
+    setMessageIndex(0);
+    setHasStarted(false);
+    setError('');
+    generate();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Typography variant="largeTitle" align="center" style={styles.title}>
-          Building Your Plan
-        </Typography>
-
-        <View style={styles.animation}>
-          <Typography variant="mono" color={colors.primary} align="center">
-            {Math.round(progress * 100)}%
+        <Animated.View entering={FadeIn.duration(600)}>
+          <Typography variant="caption1" color={colors.primary} align="center" style={styles.step}>
+            CREATING YOUR PLAN
           </Typography>
-        </View>
+          <Typography variant="largeTitle" align="center" style={styles.title}>
+            Building Your{'\n'}Training Plan
+          </Typography>
+        </Animated.View>
 
-        <ProgressBar progress={progress} height={4} style={styles.progressBar} />
+        <Animated.View entering={FadeInUp.delay(200).duration(500)} style={styles.progressArea}>
+          <View style={styles.percentContainer}>
+            <Typography
+              variant="mono"
+              color={error ? colors.error : colors.primary}
+              align="center"
+            >
+              {error ? '!' : `${Math.round(progress * 100)}%`}
+            </Typography>
+          </View>
 
-        <Typography variant="callout" color={colors.textSecondary} align="center" style={styles.message}>
-          {generationProgress || loadingMessages[messageIndex]}
-        </Typography>
+          <ProgressBar
+            progress={progress}
+            height={4}
+            color={error ? colors.error : colors.primary}
+            style={styles.progressBar}
+          />
+
+          <Typography variant="callout" color={colors.textSecondary} align="center" style={styles.message}>
+            {error ? '' : (generationProgress || loadingMessages[messageIndex])}
+          </Typography>
+        </Animated.View>
 
         {error ? (
-          <Typography variant="callout" color={colors.error} align="center" style={styles.error}>
-            {error}
-          </Typography>
+          <Animated.View entering={FadeIn.duration(300)} style={styles.errorArea}>
+            <View style={styles.errorCard}>
+              <Typography variant="headline" color={colors.error} align="center" style={{ marginBottom: spacing.sm }}>
+                Generation Failed
+              </Typography>
+              <Typography variant="footnote" color={colors.textSecondary} align="center">
+                {error}
+              </Typography>
+            </View>
+            <Button
+              title="Try Again"
+              onPress={handleRetry}
+              size="lg"
+              fullWidth
+              style={{ marginTop: spacing.xl }}
+            />
+            <Button
+              title="Go Back"
+              variant="ghost"
+              onPress={() => router.back()}
+              size="md"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
+            />
+          </Animated.View>
         ) : null}
       </View>
     </SafeAreaView>
@@ -152,10 +223,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxxl,
     alignItems: 'center',
   },
+  step: {
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginBottom: spacing.md,
+  },
   title: {
     marginBottom: spacing.huge,
   },
-  animation: {
+  progressArea: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  percentContainer: {
     marginBottom: spacing.xxl,
   },
   progressBar: {
@@ -164,7 +244,15 @@ const styles = StyleSheet.create({
   message: {
     minHeight: 44,
   },
-  error: {
-    marginTop: spacing.lg,
+  errorArea: {
+    width: '100%',
+    marginTop: spacing.xxl,
+  },
+  errorCard: {
+    backgroundColor: 'rgba(248,113,113,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.15)',
+    borderRadius: 16,
+    padding: spacing.xl,
   },
 });

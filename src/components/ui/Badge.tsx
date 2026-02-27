@@ -9,14 +9,16 @@ interface BadgeProps {
   backgroundColor?: string;
   size?: 'sm' | 'md';
   style?: ViewStyle;
+  dot?: boolean;
 }
 
 export function Badge({
   label,
   color = colors.textPrimary,
-  backgroundColor = colors.surfaceLight,
+  backgroundColor = 'rgba(255,255,255,0.06)',
   size = 'sm',
   style,
+  dot = false,
 }: BadgeProps) {
   return (
     <View
@@ -27,6 +29,7 @@ export function Badge({
         style,
       ]}
     >
+      {dot && <View style={[styles.dot, { backgroundColor: color }]} />}
       <Typography
         variant={size === 'sm' ? 'caption2' : 'caption1'}
         color={color}
@@ -38,15 +41,29 @@ export function Badge({
   );
 }
 
+export function StatusDot({ color, size = 8 }: { color: string; size?: number }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
+  );
+}
+
 const styles = StyleSheet.create({
   base: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs / 2 + 1,
     borderRadius: borderRadius.sm,
     alignSelf: 'flex-start',
+    gap: spacing.xs,
   },
   md: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });

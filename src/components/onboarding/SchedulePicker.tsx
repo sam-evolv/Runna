@@ -53,13 +53,13 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: borderRadius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   daySelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'rgba(34,211,238,0.06)',
   },
 });

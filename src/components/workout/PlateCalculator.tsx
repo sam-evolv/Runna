@@ -46,7 +46,7 @@ export function PlateCalculator({ targetWeight, unit = 'kg' }: PlateCalculatorPr
             style={[
               styles.plate,
               {
-                backgroundColor: plateColors[plate] || colors.surfaceElevated,
+                backgroundColor: plateColors[plate] || 'rgba(255,255,255,0.15)',
                 height: 20 + plate * 1.2,
               },
             ]}
@@ -75,7 +75,9 @@ const styles = StyleSheet.create({
   container: {
     marginTop: spacing.md,
     padding: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.md,
   },
   label: {

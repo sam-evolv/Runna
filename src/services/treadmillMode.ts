@@ -1,149 +1,91 @@
-// services/treadmillMode.ts
-// Treadmill mode - convert outdoor workout segments to treadmill speed/incline
+/**
+ * Treadmill mode service.
+ * Converts outdoor running segments to treadmill speed/incline instructions.
+ */
+
+import type { RunSegment, RunningWorkoutData } from '@/types/workout';
+import { paceToSpeed } from '@/utils/paceCalculator';
 
 export interface TreadmillSegment {
-  type: string;
-  duration_minutes?: number;
-  distance_km?: number;
-  speed_kph: number;
-  incline_percent: number;
+  type: RunSegment['type'];
+  durationMinutes: number;
+  speedKmh: number;
+  speedMph: number;
+  inclinePercent: number;
   description: string;
-  targetPaceMinKm: number;
+  originalPaceMinKm: number;
 }
 
-export interface TreadmillSettings {
-  useIncline: boolean; // simulate outdoor effort with incline
-  baseIncline: number; // default 1% to simulate wind resistance
-  maxIncline: number;
-  speedUnit: 'kph' | 'mph';
-  showPace: boolean; // show pace alongside speed
+export interface TreadmillWorkout {
+  segments: TreadmillSegment[];
+  totalDurationMinutes: number;
+  totalDistanceKm: number;
 }
 
-export const DEFAULT_TREADMILL_SETTINGS: TreadmillSettings = {
-  useIncline: true,
-  baseIncline: 1.0,
-  maxIncline: 15.0,
-  speedUnit: 'kph',
-  showPace: true,
+/**
+ * Default incline to simulate outdoor resistance.
+ * Running on a flat treadmill is slightly easier than running outdoors,
+ * so a 1% incline is generally recommended.
+ */
+const OUTDOOR_EQUIVALENT_INCLINE = 1.0;
+
+const SEGMENT_TYPE_INCLINES: Record<string, number> = {
+  warmup: 0.5,
+  easy: 1.0,
+  steady: 1.0,
+  tempo: 1.0,
+  interval: 1.0,
+  recovery: 0.5,
+  cooldown: 0.5,
 };
 
-// Convert pace (min/km) to speed (kph)
-export function paceToSpeed(paceMinPerKm: number): number {
-  if (paceMinPerKm <= 0) return 0;
-  return Math.round((60 / paceMinPerKm) * 10) / 10;
+function roundToHalf(n: number): number {
+  return Math.round(n * 2) / 2;
 }
 
-// Convert speed (kph) to pace (min/km)
-export function speedToPace(speedKph: number): string {
-  if (speedKph <= 0) return '--:--';
-  const paceMin = 60 / speedKph;
-  const mins = Math.floor(paceMin);
-  const secs = Math.round((paceMin - mins) * 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-// Convert kph to mph
-export function kphToMph(kph: number): number {
-  return Math.round(kph * 0.621371 * 10) / 10;
-}
-
-// Convert mph to kph
-export function mphToKph(mph: number): number {
-  return Math.round(mph * 1.60934 * 10) / 10;
-}
-
-// Convert outdoor running segments to treadmill segments
-export function convertToTreadmill(
-  segments: Array<{
-    type: string;
-    distance_km?: number;
-    duration_minutes?: number;
-    target_pace_min_km: number;
-    description: string;
-  }>,
-  settings: TreadmillSettings = DEFAULT_TREADMILL_SETTINGS
-): TreadmillSegment[] {
-  return segments.map((seg) => {
-    const speed = paceToSpeed(seg.target_pace_min_km);
-    const duration = seg.duration_minutes || (seg.distance_km ? seg.distance_km * seg.target_pace_min_km : undefined);
-
-    // Apply base incline (1% simulates outdoor wind resistance)
-    let incline = settings.useIncline ? settings.baseIncline : 0;
-
-    // For hill workouts, you could increase incline for harder segments
-    if (seg.type === 'hill' || seg.type === 'hill_rep') {
-      incline = Math.min(settings.maxIncline, 5.0);
-    }
+export function convertToTreadmill(runData: RunningWorkoutData): TreadmillWorkout {
+  const segments: TreadmillSegment[] = runData.segments.map((seg) => {
+    const speedKmh = paceToSpeed(seg.target_pace_min_km);
+    const speedMph = speedKmh / 1.60934;
+    const durationMinutes = seg.distance_km / (speedKmh / 60);
+    const incline = SEGMENT_TYPE_INCLINES[seg.type] ?? OUTDOOR_EQUIVALENT_INCLINE;
 
     return {
       type: seg.type,
-      duration_minutes: duration ? Math.round(duration * 10) / 10 : undefined,
-      distance_km: seg.distance_km,
-      speed_kph: speed,
-      incline_percent: incline,
+      durationMinutes: Math.round(durationMinutes * 10) / 10,
+      speedKmh: roundToHalf(speedKmh),
+      speedMph: roundToHalf(speedMph),
+      inclinePercent: incline,
       description: seg.description,
-      targetPaceMinKm: seg.target_pace_min_km,
+      originalPaceMinKm: seg.target_pace_min_km,
     };
   });
+
+  const totalDurationMinutes = segments.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const totalDistanceKm = runData.total_distance_km;
+
+  return { segments, totalDurationMinutes, totalDistanceKm };
 }
 
-// Calculate estimated calories for a treadmill session
-export function estimateTreadmillCalories(params: {
-  segments: TreadmillSegment[];
-  weightKg: number;
-}): number {
-  const { segments, weightKg } = params;
-  let totalCalories = 0;
+export function getTreadmillInstructions(segment: TreadmillSegment, unit: 'metric' | 'imperial' = 'metric'): string {
+  const speed = unit === 'imperial'
+    ? `${segment.speedMph.toFixed(1)} mph`
+    : `${segment.speedKmh.toFixed(1)} km/h`;
 
-  for (const seg of segments) {
-    if (!seg.duration_minutes) continue;
-    // Simplified MET calculation based on speed and incline
-    const speedMph = kphToMph(seg.speed_kph);
-    let mets: number;
+  const duration = segment.durationMinutes >= 1
+    ? `${Math.round(segment.durationMinutes)} min`
+    : `${Math.round(segment.durationMinutes * 60)} sec`;
 
-    if (speedMph < 4) mets = 3.5; // walking
-    else if (speedMph < 5) mets = 6.0; // jogging
-    else if (speedMph < 6) mets = 8.3;
-    else if (speedMph < 7) mets = 9.8;
-    else if (speedMph < 8) mets = 11.0;
-    else if (speedMph < 9) mets = 11.8;
-    else if (speedMph < 10) mets = 12.8;
-    else mets = 14.5;
+  const incline = segment.inclinePercent > 0
+    ? ` at ${segment.inclinePercent}% incline`
+    : ' flat';
 
-    // Incline adjustment (~1 MET per 2% grade)
-    mets += seg.incline_percent * 0.5;
+  return `Set speed to ${speed}${incline} for ${duration}`;
+}
 
-    // Calories = METs x weight(kg) x time(hours)
-    const hours = seg.duration_minutes / 60;
-    totalCalories += mets * weightKg * hours;
+export function formatTreadmillSpeed(speedKmh: number, unit: 'metric' | 'imperial' = 'metric'): string {
+  if (unit === 'imperial') {
+    return `${(speedKmh / 1.60934).toFixed(1)} mph`;
   }
-
-  return Math.round(totalCalories);
-}
-
-// Format speed for display
-export function formatSpeed(kph: number, unit: 'kph' | 'mph' = 'kph'): string {
-  if (unit === 'mph') return `${kphToMph(kph)} mph`;
-  return `${kph} km/h`;
-}
-
-// Generate treadmill-specific instructions
-export function getTreadmillInstructions(segment: TreadmillSegment, settings: TreadmillSettings): string {
-  const speedStr = formatSpeed(segment.speed_kph, settings.speedUnit);
-  const paceStr = settings.showPace ? ` (${speedToPace(segment.speed_kph)}/km)` : '';
-  const inclineStr = segment.incline_percent > 0 ? ` at ${segment.incline_percent}% incline` : '';
-
-  switch (segment.type) {
-    case 'warmup':
-      return `Set treadmill to ${speedStr}${paceStr}${inclineStr}. Easy warmup.`;
-    case 'interval':
-    case 'tempo':
-      return `Increase to ${speedStr}${paceStr}${inclineStr}. ${segment.description}`;
-    case 'recovery':
-      return `Drop to ${speedStr}${paceStr}. Active recovery - keep moving.`;
-    case 'cooldown':
-      return `Reduce to ${speedStr}${paceStr}. Easy cooldown, then walk for 2 minutes before stopping.`;
-    default:
-      return `Set to ${speedStr}${paceStr}${inclineStr}.`;
-  }
+  return `${speedKmh.toFixed(1)} km/h`;
 }

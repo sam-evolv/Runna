@@ -11,7 +11,7 @@ import { SetLogger } from '@/components/workout/SetLogger';
 import { RestTimer } from '@/components/workout/RestTimer';
 import { PlateCalculator } from '@/components/workout/PlateCalculator';
 import { useWorkout } from '@/hooks/useWorkout';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass } from '@/constants/theme';
 import type { StrengthWorkoutData } from '@/types/workout';
 
 export default function ActiveStrengthScreen() {
@@ -154,7 +154,7 @@ export default function ActiveStrengthScreen() {
           <Badge
             label={`Exercise ${currentExIdx + 1}/${exercises.length}`}
             color={colors.primary}
-            backgroundColor={`${colors.primary}20`}
+            backgroundColor={'rgba(34,211,238,0.12)'}
           />
           <Typography variant="title1" style={styles.exerciseName}>
             {currentExercise.name}
@@ -208,8 +208,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.massive,
   },
   header: {
     flexDirection: 'row',

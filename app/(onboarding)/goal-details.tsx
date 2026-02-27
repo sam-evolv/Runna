@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { colors, spacing, borderRadius } from '@/constants/theme';
+import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
 import type { GoalType, GoalSubtype } from '@/types/plan';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const subtypesByGoalType: Record<GoalType, Array<{ subtype: GoalSubtype; label: string; description: string }>> = {
   running: [
@@ -38,6 +49,73 @@ const subtypesByGoalType: Record<GoalType, Array<{ subtype: GoalSubtype; label: 
   ],
 };
 
+function SubtypeCard({
+  item,
+  isSelected,
+  onSelect,
+  index,
+}: {
+  item: { subtype: GoalSubtype; label: string; description: string };
+  isSelected: boolean;
+  onSelect: () => void;
+  index: number;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.97, animation.spring.snappy);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, animation.spring.snappy);
+  }, []);
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelect();
+  }, [onSelect]);
+
+  return (
+    <Animated.View entering={FadeInUp.delay(200 + index * 80).duration(450).springify()}>
+      <AnimatedPressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[
+          styles.option,
+          animatedStyle,
+          isSelected && styles.optionSelected,
+          isSelected && shadows.glow(colors.primaryDark),
+        ]}
+      >
+        <View style={styles.optionContent}>
+          <Typography variant="headline" color={colors.textPrimary}>
+            {item.label}
+          </Typography>
+          <Typography
+            variant="footnote"
+            color={isSelected ? colors.textSecondary : colors.textTertiary}
+            style={styles.optionDescription}
+          >
+            {item.description}
+          </Typography>
+        </View>
+        {isSelected && (
+          <View style={styles.checkmark}>
+            <Typography variant="caption1" color={colors.primary}>
+              {'\u2713'}
+            </Typography>
+          </View>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
 export default function GoalDetailsScreen() {
   const router = useRouter();
   const { goalType } = useLocalSearchParams<{ goalType: GoalType }>();
@@ -48,52 +126,52 @@ export default function GoalDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Typography variant="caption1" color={colors.primary} style={styles.step}>
-            STEP 2 OF 5
-          </Typography>
-          <Typography variant="largeTitle">
-            What specifically?
-          </Typography>
-          <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
-            Choose your specific goal
-          </Typography>
-        </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Animated.View entering={FadeIn.duration(600)} style={styles.header}>
+          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
+            <Typography variant="caption1" color={colors.primary} style={styles.step}>
+              STEP 2 OF 5
+            </Typography>
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+            <Typography variant="largeTitle" color={colors.textPrimary}>
+              What specifically?
+            </Typography>
+          </Animated.View>
+          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
+            <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
+              Choose your specific goal
+            </Typography>
+          </Animated.View>
+        </Animated.View>
 
         <View style={styles.options}>
-          {subtypes.map((item) => (
-            <TouchableOpacity
+          {subtypes.map((item, index) => (
+            <SubtypeCard
               key={item.subtype}
-              onPress={() => setSelected(item.subtype)}
-              activeOpacity={0.7}
-              style={[
-                styles.option,
-                selected === item.subtype && styles.optionSelected,
-              ]}
-            >
-              <View>
-                <Typography variant="headline">{item.label}</Typography>
-                <Typography variant="footnote" color={colors.textSecondary}>
-                  {item.description}
-                </Typography>
-              </View>
-            </TouchableOpacity>
+              item={item}
+              isSelected={selected === item.subtype}
+              onSelect={() => setSelected(item.subtype)}
+              index={index}
+            />
           ))}
         </View>
 
         {selected && (
-          <Input
-            label="Target (optional)"
-            placeholder="e.g. Sub 3:30 marathon, 100kg bench press"
-            value={targetValue}
-            onChangeText={setTargetValue}
-            containerStyle={styles.targetInput}
-          />
+          <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.targetSection}>
+            <View style={styles.targetDivider} />
+            <Input
+              label="Target (optional)"
+              placeholder="e.g. Sub 3:30 marathon, 100kg bench press"
+              value={targetValue}
+              onChangeText={setTargetValue}
+              containerStyle={styles.targetInput}
+            />
+          </Animated.View>
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.footer}>
         <Button
           title="Continue"
           onPress={() => {
@@ -108,7 +186,7 @@ export default function GoalDetailsScreen() {
           size="lg"
           fullWidth
         />
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -116,10 +194,11 @@ export default function GoalDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
   scrollContent: {
     paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   header: {
     paddingTop: spacing.xxl,
@@ -127,8 +206,9 @@ const styles = StyleSheet.create({
   },
   step: {
     marginBottom: spacing.sm,
-    fontWeight: '600',
-    letterSpacing: 1,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   subtitle: {
     marginTop: spacing.sm,
@@ -137,18 +217,43 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   option: {
-    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   optionSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: withOpacity(colors.primary, 0.06),
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionDescription: {
+    marginTop: 2,
+  },
+  checkmark: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+    backgroundColor: withOpacity(colors.primary, 0.15),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: spacing.sm,
+  },
+  targetSection: {
+    marginTop: spacing.xxl,
+  },
+  targetDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginBottom: spacing.xxl,
   },
   targetInput: {
-    marginTop: spacing.xxl,
+    marginBottom: spacing.md,
   },
   footer: {
     paddingHorizontal: spacing.xl,

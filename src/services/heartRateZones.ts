@@ -1,241 +1,178 @@
-// services/heartRateZones.ts
-// Heart rate zone calculation and zone-based training guidance
+/**
+ * Heart rate zones service.
+ * Calculates HR zones and provides analysis for training.
+ */
 
-export interface HeartRateZones {
-  maxHR: number;
-  restingHR: number;
-  method: 'max_hr' | 'heart_rate_reserve' | 'lactate_threshold';
-  zones: Zone[];
-}
-
-export interface Zone {
-  number: number;
+export interface HeartRateZone {
+  zone: number;
   name: string;
+  description: string;
   minBpm: number;
   maxBpm: number;
-  minPercent: number;
-  maxPercent: number;
-  description: string;
-  fuelSource: string;
-  typicalWorkouts: string[];
   color: string;
 }
 
-// Calculate max HR using different formulas
-export function estimateMaxHR(age: number, method: 'standard' | 'tanaka' | 'gulati' = 'tanaka'): number {
-  switch (method) {
-    case 'standard':
-      return Math.round(220 - age);
-    case 'tanaka':
-      // Tanaka et al. (2001) - more accurate for trained athletes
-      return Math.round(208 - 0.7 * age);
-    case 'gulati':
-      // Gulati et al. (2010) - more accurate for women
-      return Math.round(206 - 0.88 * age);
-    default:
-      return Math.round(208 - 0.7 * age);
-  }
+export interface ZoneConfig {
+  maxHR: number;
+  restingHR?: number;
+  zones: HeartRateZone[];
 }
 
-// Calculate 5 HR zones based on max HR (simple percentage method)
-export function calculateZonesFromMaxHR(maxHR: number): HeartRateZones {
-  return {
-    maxHR,
-    restingHR: 0,
-    method: 'max_hr',
-    zones: [
-      {
-        number: 1,
-        name: 'Recovery',
-        minBpm: Math.round(maxHR * 0.50),
-        maxBpm: Math.round(maxHR * 0.60),
-        minPercent: 50,
-        maxPercent: 60,
-        description: 'Very easy effort. Walking or very slow jogging. Full recovery.',
-        fuelSource: 'Primarily fat',
-        typicalWorkouts: ['Recovery walks', 'Warm-up', 'Cool-down'],
-        color: '#94a3b8',
-      },
-      {
-        number: 2,
-        name: 'Easy / Aerobic',
-        minBpm: Math.round(maxHR * 0.60),
-        maxBpm: Math.round(maxHR * 0.70),
-        minPercent: 60,
-        maxPercent: 70,
-        description: 'Comfortable pace. Can hold a full conversation. This is where most of your running should be.',
-        fuelSource: 'Mostly fat, some carbohydrate',
-        typicalWorkouts: ['Easy runs', 'Long runs', 'Base building'],
-        color: '#22d3ee',
-      },
-      {
-        number: 3,
-        name: 'Tempo / Threshold',
-        minBpm: Math.round(maxHR * 0.70),
-        maxBpm: Math.round(maxHR * 0.80),
-        minPercent: 70,
-        maxPercent: 80,
-        description: 'Comfortably hard. Can say short sentences. Sustainable for 20-60 minutes.',
-        fuelSource: 'Mix of fat and carbohydrate',
-        typicalWorkouts: ['Tempo runs', 'Marathon pace runs', 'Steady state'],
-        color: '#34d399',
-      },
-      {
-        number: 4,
-        name: 'Threshold / Hard',
-        minBpm: Math.round(maxHR * 0.80),
-        maxBpm: Math.round(maxHR * 0.90),
-        minPercent: 80,
-        maxPercent: 90,
-        description: 'Hard effort. Can only say a few words. Sustainable for 10-30 minutes.',
-        fuelSource: 'Primarily carbohydrate',
-        typicalWorkouts: ['Threshold intervals', '10K pace', 'Cruise intervals'],
-        color: '#fbbf24',
-      },
-      {
-        number: 5,
-        name: 'VO2max / Maximum',
-        minBpm: Math.round(maxHR * 0.90),
-        maxBpm: maxHR,
-        minPercent: 90,
-        maxPercent: 100,
-        description: 'Maximum effort. Cannot speak. Sustainable for 1-5 minutes.',
-        fuelSource: 'Almost entirely carbohydrate',
-        typicalWorkouts: ['VO2max intervals', 'Short repeats', 'Sprint finish'],
-        color: '#ef4444',
-      },
-    ],
-  };
+const ZONE_DEFINITIONS = [
+  { zone: 1, name: 'Recovery', description: 'Very easy, active recovery', color: '#8E8E93' },
+  { zone: 2, name: 'Aerobic', description: 'Easy, conversational pace', color: '#30D158' },
+  { zone: 3, name: 'Tempo', description: 'Moderate, comfortably hard', color: '#FF9F0A' },
+  { zone: 4, name: 'Threshold', description: 'Hard, lactate threshold', color: '#FF453A' },
+  { zone: 5, name: 'VO2max', description: 'Maximum effort, all-out', color: '#BF5AF2' },
+];
+
+/**
+ * Standard zone percentages of max HR.
+ */
+const ZONE_PCTS_OF_MAX: Array<{ min: number; max: number }> = [
+  { min: 0.50, max: 0.60 },
+  { min: 0.60, max: 0.70 },
+  { min: 0.70, max: 0.80 },
+  { min: 0.80, max: 0.90 },
+  { min: 0.90, max: 1.00 },
+];
+
+/**
+ * Karvonen (HRR) zone percentages — more accurate when resting HR is known.
+ */
+const ZONE_PCTS_OF_HRR: Array<{ min: number; max: number }> = [
+  { min: 0.40, max: 0.50 },
+  { min: 0.50, max: 0.60 },
+  { min: 0.60, max: 0.70 },
+  { min: 0.70, max: 0.80 },
+  { min: 0.80, max: 1.00 },
+];
+
+/**
+ * Estimate max HR using the Tanaka formula (more accurate than 220 - age).
+ * Tanaka et al., 2001: HRmax = 208 − 0.7 × age
+ */
+export function estimateMaxHR(age: number): number {
+  return Math.round(208 - 0.7 * age);
 }
 
-// Calculate zones using Karvonen method (Heart Rate Reserve)
-// More accurate when resting HR is known
-export function calculateZonesFromHRR(maxHR: number, restingHR: number): HeartRateZones {
+/**
+ * Calculate zones using percentage of max HR (standard method).
+ */
+export function calculateZonesFromMaxHR(maxHR: number): ZoneConfig {
+  const zones: HeartRateZone[] = ZONE_DEFINITIONS.map((def, i) => ({
+    ...def,
+    minBpm: Math.round(maxHR * ZONE_PCTS_OF_MAX[i].min),
+    maxBpm: Math.round(maxHR * ZONE_PCTS_OF_MAX[i].max),
+  }));
+
+  return { maxHR, zones };
+}
+
+/**
+ * Calculate zones using heart rate reserve (Karvonen method).
+ * More accurate when resting HR is known.
+ * Target HR = ((Max HR − Resting HR) × %Intensity) + Resting HR
+ */
+export function calculateZonesFromHRR(maxHR: number, restingHR: number): ZoneConfig {
   const hrr = maxHR - restingHR;
 
-  const calcBpm = (percent: number) => Math.round(restingHR + hrr * (percent / 100));
+  const zones: HeartRateZone[] = ZONE_DEFINITIONS.map((def, i) => ({
+    ...def,
+    minBpm: Math.round(ZONE_PCTS_OF_HRR[i].min * hrr + restingHR),
+    maxBpm: Math.round(ZONE_PCTS_OF_HRR[i].max * hrr + restingHR),
+  }));
 
-  return {
-    maxHR,
-    restingHR,
-    method: 'heart_rate_reserve',
-    zones: [
-      {
-        number: 1, name: 'Recovery',
-        minBpm: calcBpm(50), maxBpm: calcBpm(60),
-        minPercent: 50, maxPercent: 60,
-        description: 'Very easy. Active recovery only.',
-        fuelSource: 'Primarily fat',
-        typicalWorkouts: ['Recovery walks', 'Warm-up', 'Cool-down'],
-        color: '#94a3b8',
-      },
-      {
-        number: 2, name: 'Easy / Aerobic',
-        minBpm: calcBpm(60), maxBpm: calcBpm(70),
-        minPercent: 60, maxPercent: 70,
-        description: 'Comfortable conversational pace. Majority of training.',
-        fuelSource: 'Mostly fat',
-        typicalWorkouts: ['Easy runs', 'Long runs'],
-        color: '#22d3ee',
-      },
-      {
-        number: 3, name: 'Tempo',
-        minBpm: calcBpm(70), maxBpm: calcBpm(80),
-        minPercent: 70, maxPercent: 80,
-        description: 'Comfortably hard. Short sentences only.',
-        fuelSource: 'Mix of fat and carbohydrate',
-        typicalWorkouts: ['Tempo runs', 'Marathon pace'],
-        color: '#34d399',
-      },
-      {
-        number: 4, name: 'Threshold',
-        minBpm: calcBpm(80), maxBpm: calcBpm(90),
-        minPercent: 80, maxPercent: 90,
-        description: 'Hard. A few words at most.',
-        fuelSource: 'Primarily carbohydrate',
-        typicalWorkouts: ['Threshold work', '10K pace intervals'],
-        color: '#fbbf24',
-      },
-      {
-        number: 5, name: 'VO2max',
-        minBpm: calcBpm(90), maxBpm: maxHR,
-        minPercent: 90, maxPercent: 100,
-        description: 'Maximum effort. Cannot speak.',
-        fuelSource: 'Carbohydrate only',
-        typicalWorkouts: ['VO2max intervals', 'Sprints'],
-        color: '#ef4444',
-      },
-    ],
-  };
+  return { maxHR, restingHR, zones };
 }
 
-// Determine which zone a given HR falls into
-export function getZoneForHR(heartRate: number, zones: HeartRateZones): Zone | null {
-  for (const zone of zones.zones) {
-    if (heartRate >= zone.minBpm && heartRate <= zone.maxBpm) {
-      return zone;
+/**
+ * Get the zone for a given heart rate.
+ */
+export function getZoneForHR(hr: number, config: ZoneConfig): HeartRateZone | null {
+  for (let i = config.zones.length - 1; i >= 0; i--) {
+    if (hr >= config.zones[i].minBpm) {
+      return config.zones[i];
     }
   }
-  // Above max
-  if (heartRate > zones.maxHR) return zones.zones[4]; // Zone 5
-  // Below zone 1
-  return zones.zones[0]; // Zone 1
+  return config.zones[0];
 }
 
-// Calculate time in zones from a completed activity
+export interface TimeInZone {
+  zone: HeartRateZone;
+  durationSeconds: number;
+  percentage: number;
+}
+
+/**
+ * Calculate time spent in each zone from HR data samples.
+ * @param hrSamples Array of { timestamp, hr } samples (1-second intervals assumed)
+ */
 export function calculateTimeInZones(
-  heartRateData: Array<{ timestamp: number; bpm: number }>,
-  zones: HeartRateZones
-): Array<{ zone: Zone; seconds: number; percent: number }> {
-  const zoneTime = new Map<number, number>();
-  zones.zones.forEach(z => zoneTime.set(z.number, 0));
+  hrSamples: Array<{ hr: number }>,
+  config: ZoneConfig,
+): TimeInZone[] {
+  const zoneCounts = new Array(config.zones.length).fill(0);
 
-  for (let i = 1; i < heartRateData.length; i++) {
-    const duration = heartRateData[i].timestamp - heartRateData[i - 1].timestamp;
-    const zone = getZoneForHR(heartRateData[i].bpm, zones);
+  hrSamples.forEach(({ hr }) => {
+    const zone = getZoneForHR(hr, config);
     if (zone) {
-      zoneTime.set(zone.number, (zoneTime.get(zone.number) || 0) + duration);
+      zoneCounts[zone.zone - 1]++;
     }
-  }
+  });
 
-  const totalTime = Array.from(zoneTime.values()).reduce((a, b) => a + b, 0);
+  const total = hrSamples.length || 1;
 
-  return zones.zones.map(zone => ({
+  return config.zones.map((zone, i) => ({
     zone,
-    seconds: zoneTime.get(zone.number) || 0,
-    percent: totalTime > 0 ? Math.round(((zoneTime.get(zone.number) || 0) / totalTime) * 100) : 0,
+    durationSeconds: zoneCounts[i],
+    percentage: (zoneCounts[i] / total) * 100,
   }));
 }
 
-// Check if training distribution follows the 80/20 rule
-export function analyze8020Distribution(
-  timeInZones: Array<{ zone: Zone; seconds: number; percent: number }>
-): {
-  easyPercent: number;
-  hardPercent: number;
-  isBalanced: boolean;
-  feedback: string;
-} {
-  const easyPercent = timeInZones
-    .filter(t => t.zone.number <= 2)
-    .reduce((sum, t) => sum + t.percent, 0);
+export interface PolarizedAnalysis {
+  lowIntensityPercent: number; // Zone 1 + 2
+  midIntensityPercent: number; // Zone 3
+  highIntensityPercent: number; // Zone 4 + 5
+  is8020: boolean;
+  message: string;
+}
 
-  const hardPercent = timeInZones
-    .filter(t => t.zone.number >= 4)
-    .reduce((sum, t) => sum + t.percent, 0);
+/**
+ * Analyze training distribution against 80/20 polarized model.
+ * Ideal: ~80% in zones 1-2, ~20% in zones 4-5, minimal zone 3.
+ */
+export function analyze8020(timeInZones: TimeInZone[]): PolarizedAnalysis {
+  const low = timeInZones
+    .filter((t) => t.zone.zone <= 2)
+    .reduce((sum, t) => sum + t.percentage, 0);
 
-  const isBalanced = easyPercent >= 75 && easyPercent <= 85;
+  const mid = timeInZones
+    .filter((t) => t.zone.zone === 3)
+    .reduce((sum, t) => sum + t.percentage, 0);
 
-  let feedback: string;
-  if (easyPercent < 70) {
-    feedback = 'Too much hard running. You need more easy sessions to recover properly and avoid injury.';
-  } else if (easyPercent < 75) {
-    feedback = 'Slightly too intense overall. Try slowing your easy runs down a notch.';
-  } else if (easyPercent > 85) {
-    feedback = 'Could push harder on your quality sessions. Your easy runs are good but your hard sessions might not be hard enough.';
+  const high = timeInZones
+    .filter((t) => t.zone.zone >= 4)
+    .reduce((sum, t) => sum + t.percentage, 0);
+
+  const is8020 = low >= 75 && low <= 85;
+
+  let message: string;
+  if (low >= 75 && low <= 85) {
+    message = 'Great balance — your training distribution follows the 80/20 model.';
+  } else if (low > 85) {
+    message = 'Very conservative — consider adding a bit more intensity to your hard sessions.';
+  } else if (low >= 65) {
+    message = 'Slightly intense — try keeping easy runs easier to recover better between hard sessions.';
   } else {
-    feedback = 'Great distribution. You\'re following the 80/20 principle well.';
+    message = 'Too much intensity — most of your running should be easy. Slow down on easy days.';
   }
 
-  return { easyPercent, hardPercent, isBalanced, feedback };
+  return {
+    lowIntensityPercent: Math.round(low),
+    midIntensityPercent: Math.round(mid),
+    highIntensityPercent: Math.round(high),
+    is8020,
+    message,
+  };
 }

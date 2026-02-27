@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
-import { colors, spacing } from '@/constants/theme';
+import { colors, spacing, glass } from '@/constants/theme';
 import { getExerciseByName, type ExerciseInfo } from '@/constants/exercises';
 
 interface ExerciseDemoProps {
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   tag: {
-    backgroundColor: colors.surfaceLight,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: 4,
