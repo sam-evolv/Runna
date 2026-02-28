@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 
 const SUPABASE_URL = 'https://egoczxrubrgerzceibjp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2N6eHJ1YnJnZXJ6Y2VpYmpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTYwMjYsImV4cCI6MjA4Nzc5MjAyNn0.-12rFi6cBf-PftxmY885XqfmtvBp_xPHEZ284sAoZRk';
+
+// Lazily-loaded SecureStore (native only)
+let _SecureStore: typeof import('expo-secure-store') | null = null;
+let _secureStoreLoaded = false;
+
+async function getSecureStore() {
+  if (_secureStoreLoaded) return _SecureStore;
+  _secureStoreLoaded = true;
+  if (Platform.OS === 'web') return null;
+  try {
+    _SecureStore = await import('expo-secure-store');
+  } catch {
+    // expo-secure-store not available
+  }
+  return _SecureStore;
+}
+
+// Kick off loading immediately on native
+getSecureStore();
 
 // Web-safe storage adapter: localStorage on web, SecureStore on native
 const StorageAdapter = {
@@ -12,7 +30,9 @@ const StorageAdapter = {
       if (Platform.OS === 'web') {
         return localStorage.getItem(key);
       }
-      return await SecureStore.getItemAsync(key);
+      const store = await getSecureStore();
+      if (!store) return null;
+      return await store.getItemAsync(key);
     } catch {
       return null;
     }
@@ -23,7 +43,9 @@ const StorageAdapter = {
         localStorage.setItem(key, value);
         return;
       }
-      await SecureStore.setItemAsync(key, value);
+      const store = await getSecureStore();
+      if (!store) return;
+      await store.setItemAsync(key, value);
     } catch {
       // Silently fail
     }
@@ -34,7 +56,9 @@ const StorageAdapter = {
         localStorage.removeItem(key);
         return;
       }
-      await SecureStore.deleteItemAsync(key);
+      const store = await getSecureStore();
+      if (!store) return;
+      await store.deleteItemAsync(key);
     } catch {
       // Silently fail
     }

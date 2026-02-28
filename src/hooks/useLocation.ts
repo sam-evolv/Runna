@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import * as Location from 'expo-location';
+import { Platform } from 'react-native';
 
 interface LocationPoint {
   latitude: number;
@@ -9,58 +9,88 @@ interface LocationPoint {
   altitude: number | null;
 }
 
+// Lazily-loaded expo-location (not used on web)
+let _Location: typeof import('expo-location') | null = null;
+let _locationLoaded = false;
+
+async function loadLocation() {
+  if (_locationLoaded) return _Location;
+  _locationLoaded = true;
+  if (Platform.OS === 'web') return null;
+  try {
+    _Location = await import('expo-location');
+  } catch {
+    // expo-location not available
+  }
+  return _Location;
+}
+
+// Kick off loading on native
+loadLocation();
+
 /**
  * Hook for GPS location tracking during runs.
+ * On web this is a no-op that returns safe defaults.
  */
 export function useLocation() {
   const [isTracking, setIsTracking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<LocationPoint | null>(null);
   const [routePoints, setRoutePoints] = useState<LocationPoint[]>([]);
   const [totalDistance, setTotalDistance] = useState(0);
-  const watchRef = useRef<Location.LocationSubscription | null>(null);
-
-  const requestPermissions = async (): Promise<boolean> => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === 'granted';
-  };
+  const watchRef = useRef<{ remove: () => void } | null>(null);
 
   const startTracking = useCallback(async () => {
-    const granted = await requestPermissions();
-    if (!granted) return false;
+    const Location = await loadLocation();
+    if (!Location) {
+      console.warn('[useLocation] Location tracking is not available on this platform');
+      return false;
+    }
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return false;
+    } catch {
+      return false;
+    }
 
     setRoutePoints([]);
     setTotalDistance(0);
     setIsTracking(true);
 
-    watchRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 1000,
-        distanceInterval: 5,
-      },
-      (location) => {
-        const point: LocationPoint = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          timestamp: location.timestamp,
-          speed: location.coords.speed,
-          altitude: location.coords.altitude,
-        };
+    try {
+      watchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1000,
+          distanceInterval: 5,
+        },
+        (location) => {
+          const point: LocationPoint = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            timestamp: location.timestamp,
+            speed: location.coords.speed,
+            altitude: location.coords.altitude,
+          };
 
-        setCurrentLocation(point);
-        setRoutePoints((prev) => {
-          if (prev.length > 0) {
-            const last = prev[prev.length - 1];
-            const dist = haversineDistance(
-              last.latitude, last.longitude,
-              point.latitude, point.longitude,
-            );
-            setTotalDistance((d) => d + dist);
-          }
-          return [...prev, point];
-        });
-      },
-    );
+          setCurrentLocation(point);
+          setRoutePoints((prev) => {
+            if (prev.length > 0) {
+              const last = prev[prev.length - 1];
+              const dist = haversineDistance(
+                last.latitude, last.longitude,
+                point.latitude, point.longitude,
+              );
+              setTotalDistance((d) => d + dist);
+            }
+            return [...prev, point];
+          });
+        },
+      );
+    } catch {
+      setIsTracking(false);
+      return false;
+    }
 
     return true;
   }, []);
