@@ -1,14 +1,15 @@
 // Supabase Edge Function: generate-plan
-// Generates a personalised training plan using Claude AI
+// Generates a personalised training plan using NVIDIA NIM API (Llama 3.3 70B)
 //
 // Deploy with: supabase functions deploy generate-plan
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const NVIDIA_API_KEY = Deno.env.get('NVIDIA_API_KEY') ?? '';
+const NVIDIA_MODEL = 'meta/llama-3.3-70b-instruct';
+const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
-console.log(`[generate-plan] ANTHROPIC_API_KEY length: ${ANTHROPIC_API_KEY.length}`);
+console.log(`[generate-plan] NVIDIA_API_KEY length: ${NVIDIA_API_KEY.length}`);
 
 interface PlanRequest {
   user: {
@@ -206,8 +207,8 @@ serve(async (req) => {
   }
 
   try {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY is not set. Configure it in the Supabase dashboard under Edge Function secrets.');
+    if (!NVIDIA_API_KEY) {
+      throw new Error('NVIDIA_API_KEY is not set. Configure it in the Supabase dashboard under Edge Function secrets.');
     }
 
     const body = await req.json();
@@ -222,18 +223,21 @@ serve(async (req) => {
     const planRequest: PlanRequest = body;
     const systemPrompt = buildSystemPrompt(planRequest);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(NVIDIA_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
       },
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
+        model: NVIDIA_MODEL,
         max_tokens: 8192,
-        system: systemPrompt,
+        temperature: 0.6,
         messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
           {
             role: 'user',
             content: 'Generate the training plan now. Respond with JSON only.',
@@ -244,20 +248,23 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${errorBody}`);
+      throw new Error(`NVIDIA API error: ${response.status} - ${errorBody}`);
     }
 
-    const claudeResponse = await response.json();
-    const content = claudeResponse.content[0]?.text;
+    const nimResponse = await response.json();
+    const content = nimResponse.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new Error('Empty response from Claude');
+      throw new Error('Empty response from NVIDIA NIM');
     }
 
     // Parse the JSON response (handle potential markdown wrapping)
     let planJson = content;
     if (planJson.includes('```json')) {
       planJson = planJson.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    }
+    if (planJson.includes('```')) {
+      planJson = planJson.replace(/```\n?/g, '');
     }
     planJson = planJson.trim();
 
@@ -270,6 +277,7 @@ serve(async (req) => {
       },
     });
   } catch (error) {
+    console.error('[generate-plan] Error:', (error as Error).message);
     return new Response(
       JSON.stringify({ error: (error as Error).message }),
       {
