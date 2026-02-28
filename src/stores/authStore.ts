@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase, isDevMode } from '@/services/api';
+import { supabase } from '@/services/api';
 import type { User } from '@/types/user';
 
 interface AuthState {
@@ -17,23 +17,6 @@ interface AuthState {
   setOnboarded: (value: boolean) => void;
 }
 
-function createDevUser(email: string): User {
-  return {
-    id: 'dev-user-001',
-    email,
-    full_name: 'Dev User',
-    date_of_birth: null,
-    gender: null,
-    height_cm: null,
-    weight_kg: null,
-    unit_preference: 'metric',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-}
-
-const devSession = { access_token: 'dev-token', user: { id: 'dev-user-001' } };
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
@@ -41,11 +24,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isOnboarded: false,
 
   initialize: async () => {
-    if (isDevMode) {
-      set({ isLoading: false });
-      return;
-    }
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -92,11 +70,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    if (isDevMode) {
-      set({ user: createDevUser(email), session: devSession, isOnboarded: false });
-      return {};
-    }
-
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
 
@@ -120,11 +93,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signIn: async (email, password) => {
-    if (isDevMode) {
-      set({ user: createDevUser(email), session: devSession, isOnboarded: false });
-      return {};
-    }
-
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
 
@@ -152,20 +120,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    if (!isDevMode) {
-      await supabase.auth.signOut();
-    }
+    await supabase.auth.signOut();
     set({ user: null, session: null, isOnboarded: false });
   },
 
   updateProfile: async (updates) => {
     const user = get().user;
     if (!user) return { error: 'Not logged in' };
-
-    if (isDevMode) {
-      set({ user: { ...user, ...updates } });
-      return {};
-    }
 
     const { error } = await supabase
       .from('users')

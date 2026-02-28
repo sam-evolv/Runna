@@ -2,10 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key';
-
-export const isDevMode = SUPABASE_URL.includes('your-project.supabase.co');
+const SUPABASE_URL = 'https://egoczxrubrgerzceibjp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnb2N6eHJ1YnJnZXJ6Y2VpYmpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTYwMjYsImV4cCI6MjA4Nzc5MjAyNn0.-12rFi6cBf-PftxmY885XqfmtvBp_xPHEZ284sAoZRk';
 
 // Web-safe storage adapter: localStorage on web, SecureStore on native
 const StorageAdapter = {
