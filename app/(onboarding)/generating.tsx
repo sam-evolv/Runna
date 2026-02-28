@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,13 +33,26 @@ export default function GeneratingScreen() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
+  const startProgressTimer = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
       setProgress((prev) => Math.min(prev + 0.12, 0.95));
     }, 2500);
-    return () => clearInterval(interval);
+  }, []);
+
+  const stopProgressTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    startProgressTimer();
+    return stopProgressTimer;
   }, []);
 
   const generate = useCallback(async () => {
@@ -111,6 +124,7 @@ export default function GeneratingScreen() {
       const result = await createGoalAndGeneratePlan(freshUser, goalData as any, statsData as any);
 
       if (result.error) {
+        stopProgressTimer();
         setError(result.error);
       } else {
         setProgress(1);
@@ -120,6 +134,7 @@ export default function GeneratingScreen() {
         }, 600);
       }
     } catch (err) {
+      stopProgressTimer();
       setError((err as Error).message || 'Something went wrong. Please try again.');
     }
   }, [user?.id, params]);
@@ -135,6 +150,7 @@ export default function GeneratingScreen() {
     setMessageIndex(0);
     setHasStarted(false);
     setError('');
+    startProgressTimer();
     generate();
   };
 

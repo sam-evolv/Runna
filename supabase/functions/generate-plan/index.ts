@@ -5,8 +5,10 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+
+console.log(`[generate-plan] ANTHROPIC_API_KEY length: ${ANTHROPIC_API_KEY.length}`);
 
 interface PlanRequest {
   user: {
@@ -204,7 +206,20 @@ serve(async (req) => {
   }
 
   try {
-    const planRequest: PlanRequest = await req.json();
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is not set. Configure it in the Supabase dashboard under Edge Function secrets.');
+    }
+
+    const body = await req.json();
+    console.log('[generate-plan] Request keys:', Object.keys(body));
+
+    // Validate the expected nested shape
+    if (!body.user || !body.goal || !body.stats) {
+      console.error('[generate-plan] Invalid request shape. Expected {user, goal, stats}, got:', Object.keys(body));
+      throw new Error(`Invalid request: expected {user, goal, stats} but got {${Object.keys(body).join(', ')}}`);
+    }
+
+    const planRequest: PlanRequest = body;
     const systemPrompt = buildSystemPrompt(planRequest);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {

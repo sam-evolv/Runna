@@ -49,6 +49,15 @@ export async function generatePlan(request: GeneratePlanRequest): Promise<Genera
     throw new Error(`Failed to generate plan: ${error.message}`);
   }
 
+  // Edge function 500 responses may arrive in data with an error field
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  if (!data?.weeks) {
+    throw new Error('Invalid plan response: missing weeks data');
+  }
+
   return data as GeneratePlanResponse;
 }
 
