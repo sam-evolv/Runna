@@ -12,6 +12,8 @@ import { parseTimeToSeconds } from '@/utils/paceCalculator';
 import { colors, spacing } from '@/constants/theme';
 import type { GoalType, GoalSubtype, FitnessLevel } from '@/types/plan';
 
+const TIMEOUT_MS = 60_000; // 60 seconds
+
 const loadingMessages = [
   'Analysing your fitness profile...',
   'Designing your periodisation...',
@@ -34,6 +36,8 @@ export default function GeneratingScreen() {
   const [error, setError] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortedRef = useRef(false);
 
   const startProgressTimer = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -50,17 +54,55 @@ export default function GeneratingScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    startProgressTimer();
-    return stopProgressTimer;
+  const clearTimeout_ = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
   }, []);
 
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      stopProgressTimer();
+      clearTimeout_();
+    };
+  }, []);
+
+  useEffect(() => {
+    startProgressTimer();
+  }, []);
+
+  const navigateToApp = useCallback(() => {
+    console.log('[generating] Navigating to /(tabs)/today');
+    setProgress(1);
+    setOnboarded(true);
+    setTimeout(() => {
+      router.replace('/(tabs)/today');
+    }, 600);
+  }, [router, setOnboarded]);
+
   const generate = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.error('[generating] No user, aborting');
+      return;
+    }
     setError('');
     setHasStarted(true);
+    abortedRef.current = false;
+
+    // ── Start the 60s timeout ──
+    clearTimeout_();
+    timeoutRef.current = setTimeout(() => {
+      console.error('[generating] TIMEOUT after', TIMEOUT_MS, 'ms');
+      abortedRef.current = true;
+      stopProgressTimer();
+      setError('Plan generation timed out. The AI may be overloaded — please try again.');
+    }, TIMEOUT_MS);
 
     try {
+      console.log('[generating] Building request from params...');
+
       let availableDays: number[] = [];
       try {
         availableDays = JSON.parse((params.availableDays as string) || '[]');
@@ -100,7 +142,7 @@ export default function GeneratingScreen() {
         notes: null,
       };
 
-      // Update user profile first, then use fresh user for plan generation
+      // Update user profile first
       const profileUpdates: Record<string, unknown> = {};
       if (params.weight) profileUpdates.weight_kg = Number(params.weight);
       if (params.height) profileUpdates.height_cm = Number(params.height);
@@ -111,33 +153,57 @@ export default function GeneratingScreen() {
       }
 
       if (Object.keys(profileUpdates).length > 0) {
-        await useAuthStore.getState().updateProfile(profileUpdates as any);
+        console.log('[generating] Updating user profile...', Object.keys(profileUpdates));
+        try {
+          await useAuthStore.getState().updateProfile(profileUpdates as any);
+          console.log('[generating] Profile updated OK');
+        } catch (profileErr) {
+          console.error('[generating] Profile update failed (continuing):', profileErr);
+        }
       }
 
-      // Get fresh user from store AFTER profile update so AI has correct weight/height/age
+      // Check if timed out while we were doing profile update
+      if (abortedRef.current) return;
+
+      // Get fresh user from store AFTER profile update
       const freshUser = useAuthStore.getState().user;
       if (!freshUser) {
+        stopProgressTimer();
+        clearTimeout_();
         setError('User session expired. Please sign in again.');
         return;
       }
 
+      console.log('[generating] Calling createGoalAndGeneratePlan...');
       const result = await createGoalAndGeneratePlan(freshUser, goalData as any, statsData as any);
 
+      // Clear the timeout — we finished in time
+      clearTimeout_();
+
+      // If we were aborted by timeout while awaiting, don't double-update UI
+      if (abortedRef.current) {
+        console.warn('[generating] Finished after timeout, ignoring result');
+        return;
+      }
+
+      stopProgressTimer();
+
       if (result.error) {
-        stopProgressTimer();
+        console.error('[generating] createGoalAndGeneratePlan returned error:', result.error);
         setError(result.error);
       } else {
-        setProgress(1);
-        setOnboarded(true);
-        setTimeout(() => {
-          router.replace('/(tabs)/today');
-        }, 600);
+        console.log('[generating] Plan generation complete, navigating...');
+        navigateToApp();
       }
     } catch (err) {
+      clearTimeout_();
+      if (abortedRef.current) return;
       stopProgressTimer();
-      setError((err as Error).message || 'Something went wrong. Please try again.');
+      const msg = (err as Error).message || 'Something went wrong. Please try again.';
+      console.error('[generating] Uncaught error:', msg);
+      setError(msg);
     }
-  }, [user?.id, params]);
+  }, [user?.id, params, createGoalAndGeneratePlan, navigateToApp, stopProgressTimer, clearTimeout_]);
 
   useEffect(() => {
     if (!hasStarted && user) {
@@ -150,8 +216,14 @@ export default function GeneratingScreen() {
     setMessageIndex(0);
     setHasStarted(false);
     setError('');
+    abortedRef.current = false;
     startProgressTimer();
     generate();
+  };
+
+  const handleSkip = () => {
+    console.log('[generating] User chose to skip and continue to app');
+    navigateToApp();
   };
 
   return (
@@ -205,6 +277,14 @@ export default function GeneratingScreen() {
               size="lg"
               fullWidth
               style={{ marginTop: spacing.xl }}
+            />
+            <Button
+              title="Continue Without Plan"
+              variant="secondary"
+              onPress={handleSkip}
+              size="md"
+              fullWidth
+              style={{ marginTop: spacing.sm }}
             />
             <Button
               title="Go Back"

@@ -13,6 +13,8 @@ interface PlanState {
   isLoading: boolean;
   isGenerating: boolean;
   generationProgress: string;
+  // Fallback: raw AI plan kept in memory even if DB save fails
+  _rawAiPlan: GeneratePlanResponse | null;
 
   // Actions
   loadActivePlan: (userId: string) => Promise<void>;
@@ -35,11 +37,11 @@ export const usePlanStore = create<PlanState>((set, get) => ({
   isLoading: false,
   isGenerating: false,
   generationProgress: '',
+  _rawAiPlan: null,
 
   loadActivePlan: async (userId) => {
     set({ isLoading: true });
     try {
-      // Load active goal
       const { data: goal } = await supabase
         .from('goals')
         .select('*')
@@ -54,7 +56,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         return;
       }
 
-      // Load active plan
       const { data: plan } = await supabase
         .from('plans')
         .select('*')
@@ -66,7 +67,6 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         .single();
 
       if (plan) {
-        // Load workouts
         const { data: workouts } = await supabase
           .from('workouts')
           .select('*')
@@ -83,37 +83,66 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       } else {
         set({ currentGoal: goal, isLoading: false });
       }
-    } catch {
+    } catch (err) {
+      console.error('[planStore] loadActivePlan error:', err);
       set({ isLoading: false });
     }
   },
 
   createGoalAndGeneratePlan: async (user, goalData, statsData) => {
     set({ isGenerating: true, generationProgress: 'Creating your goal...' });
+    console.log('[planStore] === Starting createGoalAndGeneratePlan ===');
+    console.log('[planStore] User ID:', user.id);
+    console.log('[planStore] Goal data:', JSON.stringify(goalData));
+
+    let savedGoal: Goal | null = null;
+    let savedPlan: Plan | null = null;
+    let savedWorkouts: Workout[] = [];
 
     try {
-      // 1. Create goal
+      // ── Step 1: Create goal ──
+      console.log('[planStore] Step 1: Inserting goal...');
       const { data: goal, error: goalError } = await supabase
         .from('goals')
         .insert({ ...goalData, user_id: user.id, status: 'active' })
         .select()
         .single();
 
-      if (goalError || !goal) {
+      if (goalError) {
+        console.error('[planStore] Step 1 FAILED - goal insert error:', goalError.message, goalError.details, goalError.hint);
         set({ isGenerating: false });
-        return { error: goalError?.message || 'Failed to create goal' };
+        return { error: `Failed to create goal: ${goalError.message}` };
+      }
+      if (!goal) {
+        console.error('[planStore] Step 1 FAILED - goal insert returned null');
+        set({ isGenerating: false });
+        return { error: 'Failed to create goal: no data returned' };
+      }
+      savedGoal = goal;
+      console.log('[planStore] Step 1 OK - goal created:', goal.id);
+
+      // ── Step 2: Save stats (non-blocking — don't abort if this fails) ──
+      console.log('[planStore] Step 2: Inserting user_stats...');
+      set({ generationProgress: 'Saving your fitness profile...' });
+      try {
+        const { error: statsError } = await supabase.from('user_stats').insert({
+          ...statsData,
+          user_id: user.id,
+          goal_id: goal.id,
+        });
+        if (statsError) {
+          console.error('[planStore] Step 2 WARN - stats insert error (continuing):', statsError.message, statsError.details, statsError.hint);
+        } else {
+          console.log('[planStore] Step 2 OK - stats saved');
+        }
+      } catch (statsErr) {
+        console.error('[planStore] Step 2 WARN - stats insert threw (continuing):', statsErr);
       }
 
-      // 2. Save stats
-      set({ generationProgress: 'Saving your fitness profile...' });
-      await supabase.from('user_stats').insert({
-        ...statsData,
-        user_id: user.id,
-        goal_id: goal.id,
-      });
-
-      // 3. Generate plan via AI
+      // ── Step 3: Generate plan via AI ──
+      console.log('[planStore] Step 3: Calling AI generate-plan edge function...');
       set({ generationProgress: 'AI is building your personalised plan...' });
+
       const aiPlan = await generatePlan({
         user: {
           date_of_birth: user.date_of_birth,
@@ -126,85 +155,115 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         stats: { ...statsData, id: '', user_id: user.id, goal_id: goal.id, created_at: '' } as UserStats,
       });
 
-      // 4. Save plan
+      const totalWorkouts = aiPlan.weeks.reduce((n, w) => n + w.workouts.length, 0);
+      console.log('[planStore] Step 3 OK - AI plan received:', aiPlan.plan_name, '| weeks:', aiPlan.total_weeks, '| workouts:', totalWorkouts);
+      // Keep a copy in memory as fallback
+      set({ _rawAiPlan: aiPlan });
+
+      // ── Step 4: Save plan to DB ──
+      console.log('[planStore] Step 4: Inserting plan row...');
       set({ generationProgress: 'Saving your plan...' });
       const startDate = new Date();
-      const { data: plan, error: planError } = await supabase
-        .from('plans')
-        .insert({
-          user_id: user.id,
-          goal_id: goal.id,
-          name: aiPlan.plan_name,
-          description: aiPlan.description,
-          start_date: format(startDate, 'yyyy-MM-dd'),
-          end_date: format(addDays(startDate, aiPlan.total_weeks * 7), 'yyyy-MM-dd'),
-          total_weeks: aiPlan.total_weeks,
-          current_week: 1,
-          plan_data: {
-            weeks: aiPlan.weeks.map((w) => ({
-              week_number: w.week_number,
-              theme: w.theme,
-              total_distance_km: w.total_distance_km,
-              total_volume: w.total_volume,
-              notes: w.notes,
+      try {
+        const { data: plan, error: planError } = await supabase
+          .from('plans')
+          .insert({
+            user_id: user.id,
+            goal_id: goal.id,
+            name: aiPlan.plan_name,
+            description: aiPlan.description,
+            start_date: format(startDate, 'yyyy-MM-dd'),
+            end_date: format(addDays(startDate, aiPlan.total_weeks * 7), 'yyyy-MM-dd'),
+            total_weeks: aiPlan.total_weeks,
+            current_week: 1,
+            plan_data: {
+              weeks: aiPlan.weeks.map((w) => ({
+                week_number: w.week_number,
+                theme: w.theme,
+                total_distance_km: w.total_distance_km,
+                total_volume: w.total_volume,
+                notes: w.notes,
+              })),
+              philosophy: aiPlan.philosophy,
+              key_sessions: aiPlan.key_sessions,
+              progression_notes: aiPlan.progression_notes,
+            },
+            status: 'active',
+            ai_model: 'meta/llama-3.3-70b-instruct',
+          })
+          .select()
+          .single();
+
+        if (planError) {
+          console.error('[planStore] Step 4 FAILED - plan insert error:', planError.message, planError.details, planError.hint);
+        } else if (!plan) {
+          console.error('[planStore] Step 4 FAILED - plan insert returned null');
+        } else {
+          savedPlan = plan;
+          console.log('[planStore] Step 4 OK - plan saved:', plan.id);
+        }
+      } catch (planErr) {
+        console.error('[planStore] Step 4 THREW:', planErr);
+      }
+
+      // ── Step 5: Save individual workouts (only if plan was saved) ──
+      if (savedPlan) {
+        console.log('[planStore] Step 5: Inserting workout rows...');
+        set({ generationProgress: 'Scheduling your workouts...' });
+        try {
+          const workoutRows = aiPlan.weeks.flatMap((week) =>
+            week.workouts.map((w, idx) => ({
+              plan_id: savedPlan!.id,
+              user_id: user.id,
+              week_number: week.week_number,
+              day_of_week: w.day_of_week,
+              scheduled_date: format(
+                addDays(startDate, (week.week_number - 1) * 7 + (w.day_of_week - 1)),
+                'yyyy-MM-dd',
+              ),
+              workout_type: w.workout_type,
+              title: w.title,
+              description: w.description,
+              workout_data: w.workout_data,
+              estimated_duration_minutes: w.estimated_duration_minutes,
+              status: 'scheduled',
+              sort_order: idx,
             })),
-            philosophy: aiPlan.philosophy,
-            key_sessions: aiPlan.key_sessions,
-            progression_notes: aiPlan.progression_notes,
-          },
-          status: 'active',
-          ai_model: 'claude-sonnet-4-20250514',
-        })
-        .select()
-        .single();
+          );
 
-      if (planError || !plan) {
-        set({ isGenerating: false });
-        return { error: planError?.message || 'Failed to save plan' };
+          console.log('[planStore] Step 5: inserting', workoutRows.length, 'workouts...');
+
+          const { data: workouts, error: workoutsError } = await supabase
+            .from('workouts')
+            .insert(workoutRows)
+            .select();
+
+          if (workoutsError) {
+            console.error('[planStore] Step 5 FAILED - workouts insert error:', workoutsError.message, workoutsError.details, workoutsError.hint);
+          } else {
+            savedWorkouts = workouts || [];
+            console.log('[planStore] Step 5 OK -', savedWorkouts.length, 'workouts saved');
+          }
+        } catch (workoutErr) {
+          console.error('[planStore] Step 5 THREW:', workoutErr);
+        }
+      } else {
+        console.warn('[planStore] Step 5 SKIPPED - no plan was saved to attach workouts to');
       }
 
-      // 5. Save individual workouts
-      set({ generationProgress: 'Scheduling your workouts...' });
-      const workoutRows = aiPlan.weeks.flatMap((week) =>
-        week.workouts.map((w, idx) => ({
-          plan_id: plan.id,
-          user_id: user.id,
-          week_number: week.week_number,
-          day_of_week: w.day_of_week,
-          scheduled_date: format(
-            addDays(startDate, (week.week_number - 1) * 7 + (w.day_of_week - 1)),
-            'yyyy-MM-dd',
-          ),
-          workout_type: w.workout_type,
-          title: w.title,
-          description: w.description,
-          workout_data: w.workout_data,
-          estimated_duration_minutes: w.estimated_duration_minutes,
-          status: 'scheduled',
-          sort_order: idx,
-        })),
-      );
-
-      const { data: workouts, error: workoutsError } = await supabase
-        .from('workouts')
-        .insert(workoutRows)
-        .select();
-
-      if (workoutsError) {
-        set({ isGenerating: false });
-        return { error: workoutsError.message };
-      }
-
+      // ── All done — always succeed if we got the AI plan ──
+      console.log('[planStore] === Complete. goal:', !!savedGoal, 'plan:', !!savedPlan, 'workouts:', savedWorkouts.length, '===');
       set({
-        currentGoal: goal,
-        currentPlan: plan,
-        workouts: workouts || [],
+        currentGoal: savedGoal,
+        currentPlan: savedPlan,
+        workouts: savedWorkouts,
         isGenerating: false,
         generationProgress: '',
       });
 
       return {};
     } catch (err) {
+      console.error('[planStore] === UNCAUGHT ERROR in createGoalAndGeneratePlan ===', err);
       set({ isGenerating: false, generationProgress: '' });
       return { error: (err as Error).message };
     }
