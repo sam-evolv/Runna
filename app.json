@@ -1,19 +1,19 @@
 {
   "expo": {
     "name": "Pulse",
-    "slug": "pulse-app",
+    "slug": "pulse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "pulse",
     "splash": {
-      "backgroundColor": "#0A0A0A"
+      "backgroundColor": "#0A0A0F"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.pulse.fitness",
+      "bundleIdentifier": "com.evolvai.pulse",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Pulse uses your location to track runs and map routes.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Pulse uses your location to track runs in the background.",
@@ -24,9 +24,9 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0A"
+        "backgroundColor": "#0A0A0F"
       },
-      "package": "com.pulse.fitness",
+      "package": "com.evolvai.pulse",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",

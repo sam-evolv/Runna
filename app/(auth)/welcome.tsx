@@ -1,39 +1,83 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { colors, spacing, borderRadius, glass, shadows, withOpacity } from '@/constants/theme';
 
 const FEATURES = [
-  { icon: '\u{1F3C3}', text: 'Structured running workouts with pace alerts' },
-  { icon: '\u{1F4AA}', text: 'Strength programs with progressive overload' },
-  { icon: '\u231A', text: 'Syncs to Apple Watch and Garmin' },
-  { icon: '\u{1F9E0}', text: 'AI adapts your plan to your progress' },
+  { icon: '\u{1F3C3}', text: 'Run training: C25K to marathon' },
+  { icon: '\u{1F4AA}', text: 'Strength: beginner to powerlifting' },
+  { icon: '\u{1F525}', text: 'HYROX & triathlon race prep' },
+  { icon: '\u{1F9E0}', text: 'AI coach that adapts to you' },
 ] as const;
 
 export default function WelcomeScreen() {
   const router = useRouter();
 
+  const pulseScale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.05, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+    glowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.6, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+  }, []);
+
+  const logoAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Animated background glow */}
+      <Animated.View style={[styles.bgGlow, glowStyle]} />
+
       {/* Hero Section */}
       <View style={styles.hero}>
         <Animated.View
           entering={FadeIn.duration(1000).delay(200)}
           style={styles.logoContainer}
         >
-          <Typography
-            variant="largeTitle"
-            color={colors.primary}
-            align="center"
-            style={[styles.logo, shadows.glow(colors.primary)]}
-          >
-            PULSE
-          </Typography>
+          <Animated.View style={logoAnimStyle}>
+            <Typography
+              variant="largeTitle"
+              color={colors.primary}
+              align="center"
+              style={[styles.logo, shadows.glow(colors.primary)]}
+            >
+              PULSE
+            </Typography>
+          </Animated.View>
           <View style={styles.logoAccent} />
         </Animated.View>
 
@@ -44,7 +88,7 @@ export default function WelcomeScreen() {
             align="center"
             style={styles.tagline}
           >
-            Your AI-powered{'\n'}fitness coach
+            Your AI coach for{'\n'}every fitness goal
           </Typography>
         </Animated.View>
 
@@ -55,8 +99,7 @@ export default function WelcomeScreen() {
             align="center"
             style={styles.subtitle}
           >
-            Personalised training plans for running, strength, triathlon, and more.
-            Built by AI, guided by sports science.
+            One app. Every goal. Running, strength,{'\n'}HYROX, triathlon — all with AI coaching.
           </Typography>
         </Animated.View>
       </View>
@@ -115,16 +158,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  bgGlow: {
+    position: 'absolute',
+    top: -100,
+    left: '50%',
+    marginLeft: -150,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: colors.primary,
+    opacity: 0.3,
   },
   hero: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: spacing.huge,
+    paddingTop: spacing.xxl,
   },
   logoContainer: {
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xl,
     alignItems: 'center',
   },
   logo: {
@@ -140,7 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity(colors.primary, 0.5),
   },
   tagline: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     lineHeight: 30,
   },
   subtitle: {
@@ -148,15 +202,15 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   features: {
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xxxl,
-    gap: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.sm,
   },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     borderRadius: borderRadius.lg,
     ...glass.card,
   },
@@ -170,10 +224,10 @@ const styles = StyleSheet.create({
   },
   featureText: {
     flex: 1,
-    marginLeft: spacing.lg,
+    marginLeft: spacing.md,
   },
   buttons: {
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.xl,
     gap: spacing.sm,
   },
   ghostButton: {

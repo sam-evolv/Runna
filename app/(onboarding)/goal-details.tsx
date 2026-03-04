@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -15,157 +15,214 @@ import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
-import type { GoalType, GoalSubtype } from '@/types/plan';
+import type { GoalType, GoalSubtype, FitnessLevel } from '@/types/plan';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const subtypesByGoalType: Record<GoalType, Array<{ subtype: GoalSubtype; label: string; description: string }>> = {
-  running: [
-    { subtype: 'couch_to_5k', label: 'Couch to 5k', description: 'Start from scratch' },
-    { subtype: '5k', label: '5k', description: 'Speed up your 5k time' },
-    { subtype: '10k', label: '10k', description: 'Train for a 10k race' },
-    { subtype: 'half_marathon', label: 'Half Marathon', description: '21.1km / 13.1 miles' },
-    { subtype: 'marathon', label: 'Marathon', description: '42.2km / 26.2 miles' },
-    { subtype: 'ultra', label: 'Ultra Marathon', description: '50k, 100k, or beyond' },
-  ],
-  strength: [
-    { subtype: 'general_hypertrophy', label: 'Build Muscle', description: 'General hypertrophy program' },
-    { subtype: 'powerlifting', label: 'Powerlifting', description: 'Squat, bench, deadlift focus' },
-    { subtype: 'bench_press', label: 'Bench Press Goal', description: 'Hit a bench press target' },
-    { subtype: 'squat', label: 'Squat Goal', description: 'Hit a squat target' },
-    { subtype: 'deadlift', label: 'Deadlift Goal', description: 'Hit a deadlift target' },
-  ],
-  triathlon: [
-    { subtype: 'sprint_tri', label: 'Sprint Triathlon', description: '750m/20km/5km' },
-    { subtype: 'olympic_tri', label: 'Olympic Triathlon', description: '1.5km/40km/10km' },
-    { subtype: 'half_ironman', label: 'Half Ironman (70.3)', description: '1.9km/90km/21.1km' },
-    { subtype: 'ironman', label: 'Ironman', description: '3.8km/180km/42.2km' },
-  ],
-  general_fitness: [
-    { subtype: 'couch_to_5k', label: 'Couch to 5k', description: 'Get running from zero' },
-    { subtype: 'weight_loss', label: 'Weight Loss', description: 'Burn fat with cardio & strength' },
-    { subtype: 'flexibility', label: 'Flexibility & Mobility', description: 'Improve range of motion' },
-    { subtype: 'general_fitness', label: 'General Fitness', description: 'All-round fitness improvement' },
-  ],
-};
+const levels: Array<{ level: FitnessLevel; label: string; description: string }> = [
+  { level: 'beginner', label: 'Beginner', description: 'New to this or returning after a long break' },
+  { level: 'intermediate', label: 'Intermediate', description: 'Regular training for 6+ months' },
+  { level: 'advanced', label: 'Advanced', description: '2+ years consistent training' },
+  { level: 'elite', label: 'Elite', description: 'Competitive level athlete' },
+];
 
-function SubtypeCard({
-  item,
-  isSelected,
-  onSelect,
-  index,
-}: {
-  item: { subtype: GoalSubtype; label: string; description: string };
-  isSelected: boolean;
-  onSelect: () => void;
-  index: number;
-}) {
-  const scale = useSharedValue(1);
+const equipmentOptions = [
+  { id: 'barbell', label: 'Barbell', icon: '\u{1F3CB}' },
+  { id: 'dumbbells', label: 'Dumbbells', icon: '\u{1F4AA}' },
+  { id: 'cable_machine', label: 'Cables', icon: '\u{1FA9F}' },
+  { id: 'machine', label: 'Machines', icon: '\u2699\uFE0F' },
+  { id: 'none', label: 'Bodyweight', icon: '\u{1F9D8}' },
+];
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+const triDistances = [
+  { id: 'sprint_tri', label: 'Sprint', desc: '750m/20km/5km' },
+  { id: 'olympic_tri', label: 'Olympic', desc: '1.5km/40km/10km' },
+  { id: 'half_ironman', label: '70.3', desc: '1.9km/90km/21.1km' },
+  { id: 'ironman', label: 'Ironman', desc: '3.8km/180km/42.2km' },
+];
 
-  const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.97, animation.spring.snappy);
-  }, []);
-
-  const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, animation.spring.snappy);
-  }, []);
-
-  const handlePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSelect();
-  }, [onSelect]);
-
-  return (
-    <Animated.View entering={FadeInUp.delay(200 + index * 80).duration(450).springify()}>
-      <AnimatedPressable
-        onPress={handlePress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={[
-          styles.option,
-          animatedStyle,
-          isSelected && styles.optionSelected,
-          isSelected && shadows.glow(colors.primaryDark),
-        ]}
-      >
-        <View style={styles.optionContent}>
-          <Typography variant="headline" color={colors.textPrimary}>
-            {item.label}
-          </Typography>
-          <Typography
-            variant="footnote"
-            color={isSelected ? colors.textSecondary : colors.textTertiary}
-            style={styles.optionDescription}
-          >
-            {item.description}
-          </Typography>
-        </View>
-        {isSelected && (
-          <View style={styles.checkmark}>
-            <Typography variant="caption1" color={colors.primary}>
-              {'\u2713'}
-            </Typography>
-          </View>
-        )}
-      </AnimatedPressable>
-    </Animated.View>
-  );
-}
+const daysPerWeekOptions = [2, 3, 4, 5, 6];
 
 export default function GoalDetailsScreen() {
   const router = useRouter();
-  const { goalType } = useLocalSearchParams<{ goalType: GoalType }>();
-  const [selected, setSelected] = useState<GoalSubtype | null>(null);
-  const [targetValue, setTargetValue] = useState('');
+  const { goalType, goalSubtype } = useLocalSearchParams<{ goalType: string; goalSubtype: string }>();
 
-  const subtypes = subtypesByGoalType[goalType as GoalType] || [];
+  const [fitnessLevel, setFitnessLevel] = useState<FitnessLevel | null>(null);
+  const [targetValue, setTargetValue] = useState('');
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [daysPerWeek, setDaysPerWeek] = useState<number | null>(null);
+  const [triDistance, setTriDistance] = useState<string | null>(null);
+
+  const isRunning = goalType === 'running';
+  const isStrength = goalType === 'strength';
+  const isHyrox = goalType === 'hyrox';
+  const isTri = goalType === 'triathlon' || goalType === 'endurance';
+
+  const toggleEquipment = (id: string) => {
+    setSelectedEquipment((prev) =>
+      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id],
+    );
+  };
+
+  const canContinue = fitnessLevel !== null;
+
+  const handleContinue = () => {
+    router.push({
+      pathname: '/(onboarding)/current-stats',
+      params: {
+        goalType: goalType as string,
+        goalSubtype: (isTri && triDistance) ? triDistance : goalSubtype as string,
+        targetValue,
+        fitnessLevel: fitnessLevel || 'beginner',
+        equipment: selectedEquipment.join(','),
+        daysPerWeek: daysPerWeek ? String(daysPerWeek) : '4',
+      },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeIn.duration(600)} style={styles.header}>
-          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
-            <Typography variant="caption1" color={colors.primary} style={styles.step}>
-              STEP 2 OF 5
-            </Typography>
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
-            <Typography variant="largeTitle" color={colors.textPrimary}>
-              What specifically?
-            </Typography>
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
-            <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
-              Choose your specific goal
-            </Typography>
-          </Animated.View>
+          <Typography variant="caption1" color={colors.primary} style={styles.step}>
+            STEP 2 OF 5
+          </Typography>
+          <Typography variant="largeTitle" color={colors.textPrimary}>
+            Tell us more
+          </Typography>
+          <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
+            Help us personalise your plan
+          </Typography>
         </Animated.View>
 
-        <View style={styles.options}>
-          {subtypes.map((item, index) => (
-            <SubtypeCard
-              key={item.subtype}
-              item={item}
-              isSelected={selected === item.subtype}
-              onSelect={() => setSelected(item.subtype)}
-              index={index}
-            />
-          ))}
-        </View>
+        {/* Fitness Level */}
+        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+          <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+            Experience Level
+          </Typography>
+          <View style={styles.levelGrid}>
+            {levels.map((item) => (
+              <Pressable
+                key={item.level}
+                style={[
+                  styles.levelCard,
+                  fitnessLevel === item.level && { borderColor: colors.primary, backgroundColor: withOpacity(colors.primary, 0.08) },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFitnessLevel(item.level);
+                }}
+              >
+                <Typography variant="callout" style={{ fontWeight: '600' }}>{item.label}</Typography>
+                <Typography variant="caption2" color={colors.textMuted} style={{ marginTop: 2 }}>{item.description}</Typography>
+              </Pressable>
+            ))}
+          </View>
+        </Animated.View>
 
-        {selected && (
-          <Animated.View entering={FadeInUp.duration(400).springify()} style={styles.targetSection}>
-            <View style={styles.targetDivider} />
+        {/* Running target */}
+        {isRunning && (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+              Target Time (optional)
+            </Typography>
             <Input
-              label="Target (optional)"
-              placeholder="e.g. Sub 3:30 marathon, 100kg bench press"
+              label=""
+              placeholder="e.g. Sub 25:00 for 5K, sub 3:30 marathon"
               value={targetValue}
               onChangeText={setTargetValue}
-              containerStyle={styles.targetInput}
+            />
+          </Animated.View>
+        )}
+
+        {/* Triathlon distance */}
+        {isTri && (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+              Race Distance
+            </Typography>
+            <View style={styles.triGrid}>
+              {triDistances.map((d) => (
+                <Pressable
+                  key={d.id}
+                  style={[
+                    styles.triCard,
+                    triDistance === d.id && { borderColor: colors.triathlon, backgroundColor: withOpacity(colors.triathlon, 0.08) },
+                  ]}
+                  onPress={() => setTriDistance(d.id)}
+                >
+                  <Typography variant="callout" style={{ fontWeight: '600' }}>{d.label}</Typography>
+                  <Typography variant="caption2" color={colors.textMuted}>{d.desc}</Typography>
+                </Pressable>
+              ))}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Strength / HYROX equipment */}
+        {(isStrength || isHyrox) && (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+            <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+              Available Equipment
+            </Typography>
+            <View style={styles.equipGrid}>
+              {equipmentOptions.map((eq) => {
+                const isSel = selectedEquipment.includes(eq.id);
+                return (
+                  <Pressable
+                    key={eq.id}
+                    style={[styles.equipCard, isSel && { borderColor: colors.primary, backgroundColor: withOpacity(colors.primary, 0.08) }]}
+                    onPress={() => toggleEquipment(eq.id)}
+                  >
+                    <Typography variant="title3" style={{ textAlign: 'center' }}>{eq.icon}</Typography>
+                    <Typography variant="caption2" color={isSel ? colors.primary : colors.textSecondary} style={{ textAlign: 'center', marginTop: 4 }}>
+                      {eq.label}
+                    </Typography>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Days per week */}
+        <Animated.View entering={FadeInDown.delay(400).duration(400)}>
+          <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+            Days Per Week
+          </Typography>
+          <View style={styles.daysRow}>
+            {daysPerWeekOptions.map((d) => (
+              <Pressable
+                key={d}
+                style={[
+                  styles.dayPill,
+                  daysPerWeek === d && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
+                onPress={() => setDaysPerWeek(d)}
+              >
+                <Typography
+                  variant="headline"
+                  color={daysPerWeek === d ? colors.textInverse : colors.textPrimary}
+                  style={{ textAlign: 'center' }}
+                >
+                  {d}
+                </Typography>
+              </Pressable>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* Strength target */}
+        {isStrength && (
+          <Animated.View entering={FadeInDown.delay(500).duration(400)}>
+            <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+              Target (optional)
+            </Typography>
+            <Input
+              label=""
+              placeholder="e.g. 100kg bench press, gain 5kg muscle"
+              value={targetValue}
+              onChangeText={setTargetValue}
             />
           </Animated.View>
         )}
@@ -174,15 +231,8 @@ export default function GoalDetailsScreen() {
       <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.footer}>
         <Button
           title="Continue"
-          onPress={() => {
-            if (selected) {
-              router.push({
-                pathname: '/(onboarding)/current-stats',
-                params: { goalType, goalSubtype: selected, targetValue },
-              });
-            }
-          }}
-          disabled={!selected}
+          onPress={handleContinue}
+          disabled={!canContinue}
           size="lg"
           fullWidth
         />
@@ -194,15 +244,15 @@ export default function GoalDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
   },
   header: {
-    paddingTop: spacing.xxl,
-    marginBottom: spacing.xxl,
+    paddingTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   step: {
     marginBottom: spacing.sm,
@@ -213,50 +263,64 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: spacing.sm,
   },
-  options: {
-    gap: spacing.md,
+  sectionTitle: {
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
   },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+  levelGrid: {
+    gap: spacing.sm,
+  },
+  levelCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.border,
   },
-  optionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: withOpacity(colors.primary, 0.06),
+  triGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  optionContent: {
-    flex: 1,
+  triCard: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  optionDescription: {
-    marginTop: 2,
+  equipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  checkmark: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: withOpacity(colors.primary, 0.15),
-    justifyContent: 'center',
+  equipCard: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
-    marginLeft: spacing.sm,
   },
-  targetSection: {
-    marginTop: spacing.xxl,
+  daysRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
-  targetDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginBottom: spacing.xxl,
-  },
-  targetInput: {
-    marginBottom: spacing.md,
+  dayPill: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
   },
   footer: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
   },
 });

@@ -8,6 +8,7 @@ export type WorkoutType =
   | 'hill_run'
   | 'race_pace'
   | 'strength'
+  | 'hyrox'
   | 'mobility'
   | 'swim'
   | 'bike'

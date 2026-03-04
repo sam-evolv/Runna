@@ -4,42 +4,57 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Premium Dark Palette ────────────────────────────────────────────────────
 export const colors = {
-  // Primary — electric cyan
-  primary: '#22D3EE',
-  primaryDark: '#0891B2',
-  primaryLight: '#67E8F9',
-  primaryMuted: 'rgba(34,211,238,0.12)',
+  // Primary — purple
+  primary: '#6C5CE7',
+  primaryDark: '#5A4BD6',
+  primaryLight: '#A29BFE',
+  primaryMuted: 'rgba(108,92,231,0.12)',
 
-  // Background — true dark
-  background: '#050505',
-  surface: 'rgba(255,255,255,0.03)',
-  surfaceLight: 'rgba(255,255,255,0.06)',
-  surfaceElevated: 'rgba(255,255,255,0.09)',
+  // Secondary — teal
+  secondary: '#00CEC9',
+  secondaryMuted: 'rgba(0,206,201,0.12)',
+
+  // Accent — pink
+  accent: '#FD79A8',
+  accentMuted: 'rgba(253,121,168,0.12)',
+
+  // Background — premium dark
+  background: '#0A0A0F',
+  surface: '#13131A',
+  surfaceLight: '#1C1C26',
+  surfaceElevated: '#1C1C26',
 
   // Text
-  textPrimary: '#F0F0F0',
-  textSecondary: 'rgba(255,255,255,0.55)',
-  textTertiary: 'rgba(255,255,255,0.3)',
-  textInverse: '#050505',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A0A0B8',
+  textTertiary: '#5A5A72',
+  textMuted: '#5A5A72',
+  textInverse: '#0A0A0F',
 
-  // Accents
-  success: '#34D399',
-  warning: '#FBBF24',
-  error: '#F87171',
-  coral: '#FB7185',
+  // Status
+  success: '#00B894',
+  warning: '#FDCB6E',
+  error: '#E17055',
 
-  // Workout types
-  easyRun: '#34D399',
-  tempoRun: '#FBBF24',
-  intervalRun: '#F87171',
-  longRun: '#22D3EE',
-  recoveryRun: '#A78BFA',
-  strength: '#FB7185',
-  mobility: '#67E8F9',
+  // Workout type colours
+  run: '#0984E3',
+  strength: '#E17055',
+  hyrox: '#6C5CE7',
+  triathlon: '#00CEC9',
+  recovery: '#00B894',
+
+  // Workout sub-types (backward compat)
+  easyRun: '#0984E3',
+  tempoRun: '#FDCB6E',
+  intervalRun: '#E17055',
+  longRun: '#0984E3',
+  recoveryRun: '#00B894',
+  mobility: '#00CEC9',
   rest: 'rgba(255,255,255,0.2)',
+  coral: '#E17055',
 
   // Utility
-  border: 'rgba(255,255,255,0.06)',
+  border: '#2A2A38',
   borderLight: 'rgba(255,255,255,0.1)',
   overlay: 'rgba(0,0,0,0.75)',
   transparent: 'transparent',
@@ -65,10 +80,10 @@ export function withOpacity(hex: string, opacity: number): string {
 export const spacing = {
   xs: 4,
   sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
   xxxl: 32,
   huge: 48,
   massive: 64,
@@ -79,7 +94,7 @@ export const borderRadius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 20,
+  xl: 24,
   xxl: 28,
   full: 9999,
 } as const;
@@ -201,19 +216,19 @@ export const shadows = {
 // ─── Glass Card Styles ───────────────────────────────────────────────────────
 export const glass = {
   card: {
-    backgroundColor: 'rgba(255,255,255,0.03)' as string,
+    backgroundColor: '#13131A' as string,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)' as string,
+    borderColor: '#2A2A38' as string,
   },
   cardElevated: {
-    backgroundColor: 'rgba(255,255,255,0.06)' as string,
+    backgroundColor: '#1C1C26' as string,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)' as string,
+    borderColor: '#2A2A38' as string,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.04)' as string,
+    backgroundColor: '#13131A' as string,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)' as string,
+    borderColor: '#2A2A38' as string,
   },
 } as const;
 
@@ -240,37 +255,39 @@ export const animation = {
 
 // ─── Gradients ───────────────────────────────────────────────────────────────
 export const gradients = {
-  primary: ['#22D3EE', '#06B6D4'] as const,
-  success: ['#34D399', '#10B981'] as const,
-  warning: ['#FBBF24', '#F59E0B'] as const,
-  error: ['#F87171', '#EF4444'] as const,
-  purple: ['#A78BFA', '#8B5CF6'] as const,
-  surface: ['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.01)'] as const,
+  primary: ['#6C5CE7', '#A29BFE'] as const,
+  success: ['#00B894', '#55EFC4'] as const,
+  warning: ['#FDCB6E', '#F9CA24'] as const,
+  error: ['#E17055', '#D63031'] as const,
+  purple: ['#6C5CE7', '#A29BFE'] as const,
+  surface: ['#0A0A0F', '#13131A'] as const,
 } as const;
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 export const layout = {
   screenWidth: SCREEN_WIDTH,
   screenHeight: SCREEN_HEIGHT,
-  screenPadding: spacing.xl,
+  screenPadding: spacing.lg,
   maxContentWidth: 428,
   hitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
-  minTouchTarget: 44,
+  minTouchTarget: 48,
 } as const;
 
 // ─── Workout Type → Color ────────────────────────────────────────────────────
 export const workoutTypeColors: Record<string, string> = {
-  easy_run: colors.easyRun,
+  easy_run: colors.run,
   tempo_run: colors.tempoRun,
   interval_run: colors.intervalRun,
-  long_run: colors.longRun,
-  recovery_run: colors.recoveryRun,
+  long_run: colors.run,
+  recovery_run: colors.recovery,
   fartlek: colors.warning,
   hill_run: colors.coral,
   race_pace: colors.error,
   strength: colors.strength,
-  mobility: colors.mobility,
-  swim: '#67E8F9',
-  bike: '#FDE68A',
+  mobility: colors.triathlon,
+  swim: colors.triathlon,
+  bike: '#FDCB6E',
   rest: colors.rest,
+  hyrox: colors.hyrox,
+  run: colors.run,
 };

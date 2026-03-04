@@ -6,106 +6,30 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
-import type { GoalType, FitnessLevel } from '@/types/plan';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const levels: Array<{ level: FitnessLevel; label: string; description: string }> = [
-  { level: 'beginner', label: 'Beginner', description: 'New to this or returning after a long break' },
-  { level: 'intermediate', label: 'Intermediate', description: 'Regular training for 6+ months' },
-  { level: 'advanced', label: 'Advanced', description: '2+ years consistent training' },
-  { level: 'elite', label: 'Elite', description: 'Competitive level athlete' },
-];
-
-function LevelCard({
-  item,
-  isSelected,
-  onSelect,
-  index,
-}: {
-  item: (typeof levels)[number];
-  isSelected: boolean;
-  onSelect: () => void;
-  index: number;
-}) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.97, animation.spring.snappy);
-  }, []);
-
-  const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, animation.spring.snappy);
-  }, []);
-
-  const handlePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSelect();
-  }, [onSelect]);
-
-  return (
-    <Animated.View entering={FadeInUp.delay(300 + index * 80).duration(450).springify()}>
-      <AnimatedPressable
-        onPress={handlePress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={[
-          styles.levelOption,
-          animatedStyle,
-          isSelected && styles.levelSelected,
-          isSelected && shadows.glow(colors.primaryDark),
-        ]}
-      >
-        <View style={styles.levelContent}>
-          <Typography variant="headline" color={isSelected ? colors.textPrimary : colors.textPrimary}>
-            {item.label}
-          </Typography>
-          <Typography
-            variant="footnote"
-            color={isSelected ? colors.textSecondary : colors.textTertiary}
-            style={styles.levelDescription}
-          >
-            {item.description}
-          </Typography>
-        </View>
-        {isSelected && (
-          <View style={styles.checkmark}>
-            <Typography variant="caption1" color={colors.primary}>
-              {'\u2713'}
-            </Typography>
-          </View>
-        )}
-      </AnimatedPressable>
-    </Animated.View>
-  );
-}
+import { colors, spacing, borderRadius, withOpacity } from '@/constants/theme';
+import type { GoalType } from '@/types/plan';
 
 export default function CurrentStatsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
-    goalType: GoalType;
+    goalType: string;
     goalSubtype: string;
     targetValue: string;
+    fitnessLevel: string;
+    equipment: string;
+    daysPerWeek: string;
   }>();
-
-  const [fitnessLevel, setFitnessLevel] = useState<FitnessLevel | null>(null);
 
   // Running stats
   const [recent5k, setRecent5k] = useState('');
   const [recent10k, setRecent10k] = useState('');
+  const [recentHalf, setRecentHalf] = useState('');
+  const [recentMarathon, setRecentMarathon] = useState('');
   const [weeklyMileage, setWeeklyMileage] = useState('');
 
   // Strength stats
@@ -113,68 +37,59 @@ export default function CurrentStatsScreen() {
   const [squat, setSquat] = useState('');
   const [deadlift, setDeadlift] = useState('');
 
-  const isRunning = params.goalType === 'running' || params.goalType === 'triathlon';
+  const isRunning = params.goalType === 'running' || params.goalType === 'triathlon' || params.goalType === 'endurance';
   const isStrength = params.goalType === 'strength';
+  const isHyrox = params.goalType === 'hyrox';
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeIn.duration(600)} style={styles.header}>
-          <Animated.View entering={FadeInDown.delay(100).duration(500)}>
-            <Typography variant="caption1" color={colors.primary} style={styles.step}>
-              STEP 3 OF 5
-            </Typography>
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
-            <Typography variant="largeTitle" color={colors.textPrimary}>
-              Where are you now?
-            </Typography>
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
-            <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
-              Help us understand your current fitness level
-            </Typography>
-          </Animated.View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(350).duration(500)}>
-          <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
-            Experience Level
+          <Typography variant="caption1" color={colors.primary} style={styles.step}>
+            STEP 3 OF 5
+          </Typography>
+          <Typography variant="largeTitle" color={colors.textPrimary}>
+            Current stats
+          </Typography>
+          <Typography variant="body" color={colors.textSecondary} style={styles.subtitle}>
+            Skip anything you don't know — we'll figure it out
           </Typography>
         </Animated.View>
 
-        <View style={styles.levels}>
-          {levels.map((item, index) => (
-            <LevelCard
-              key={item.level}
-              item={item}
-              isSelected={fitnessLevel === item.level}
-              onSelect={() => setFitnessLevel(item.level)}
-              index={index}
-            />
-          ))}
-        </View>
-
         {isRunning && (
-          <Animated.View entering={FadeInUp.delay(700).duration(500)} style={styles.statsSection}>
-            <View style={styles.statsDivider} />
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
             <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
               Recent Times (optional)
             </Typography>
             <Input
-              label="Recent 5k Time"
+              label="5K Time"
               placeholder="e.g. 25:30"
               value={recent5k}
               onChangeText={setRecent5k}
               containerStyle={styles.input}
             />
             <Input
-              label="Recent 10k Time"
+              label="10K Time"
               placeholder="e.g. 55:00"
               value={recent10k}
               onChangeText={setRecent10k}
               containerStyle={styles.input}
             />
+            <Input
+              label="Half Marathon Time"
+              placeholder="e.g. 1:55:00"
+              value={recentHalf}
+              onChangeText={setRecentHalf}
+              containerStyle={styles.input}
+            />
+            <Input
+              label="Marathon Time"
+              placeholder="e.g. 4:00:00"
+              value={recentMarathon}
+              onChangeText={setRecentMarathon}
+              containerStyle={styles.input}
+            />
+            <View style={styles.divider} />
             <Input
               label="Weekly Mileage (km)"
               placeholder="e.g. 30"
@@ -187,14 +102,13 @@ export default function CurrentStatsScreen() {
           </Animated.View>
         )}
 
-        {isStrength && (
-          <Animated.View entering={FadeInUp.delay(700).duration(500)} style={styles.statsSection}>
-            <View style={styles.statsDivider} />
+        {(isStrength || isHyrox) && (
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
             <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
-              Current Maxes (optional)
+              Current 1RMs (optional)
             </Typography>
             <Input
-              label="Bench Press 1RM"
+              label="Bench Press"
               placeholder="e.g. 80"
               value={benchPress}
               onChangeText={setBenchPress}
@@ -203,7 +117,7 @@ export default function CurrentStatsScreen() {
               containerStyle={styles.input}
             />
             <Input
-              label="Squat 1RM"
+              label="Squat"
               placeholder="e.g. 100"
               value={squat}
               onChangeText={setSquat}
@@ -212,7 +126,7 @@ export default function CurrentStatsScreen() {
               containerStyle={styles.input}
             />
             <Input
-              label="Deadlift 1RM"
+              label="Deadlift"
               placeholder="e.g. 120"
               value={deadlift}
               onChangeText={setDeadlift}
@@ -222,9 +136,41 @@ export default function CurrentStatsScreen() {
             />
           </Animated.View>
         )}
+
+        {isHyrox && (
+          <Animated.View entering={FadeInDown.delay(300).duration(500)}>
+            <View style={styles.divider} />
+            <Input
+              label="Weekly Running (km)"
+              placeholder="e.g. 20"
+              value={weeklyMileage}
+              onChangeText={setWeeklyMileage}
+              keyboardType="numeric"
+              suffix="km"
+              containerStyle={styles.input}
+            />
+          </Animated.View>
+        )}
+
+        {!isRunning && !isStrength && !isHyrox && (
+          <Animated.View entering={FadeInDown.delay(200).duration(500)}>
+            <Typography variant="headline" color={colors.textPrimary} style={styles.sectionTitle}>
+              Current Activity (optional)
+            </Typography>
+            <Input
+              label="Weekly Exercise Hours"
+              placeholder="e.g. 4"
+              value={weeklyMileage}
+              onChangeText={setWeeklyMileage}
+              keyboardType="numeric"
+              suffix="hrs"
+              containerStyle={styles.input}
+            />
+          </Animated.View>
+        )}
       </ScrollView>
 
-      <Animated.View entering={FadeInUp.delay(800).duration(500)} style={styles.footer}>
+      <Animated.View entering={FadeInUp.delay(600).duration(500)} style={styles.footer}>
         <Button
           title="Continue"
           onPress={() => {
@@ -232,7 +178,6 @@ export default function CurrentStatsScreen() {
               pathname: '/(onboarding)/profile-details',
               params: {
                 ...params,
-                fitnessLevel: fitnessLevel || 'beginner',
                 recent5k,
                 recent10k,
                 weeklyMileage,
@@ -242,9 +187,21 @@ export default function CurrentStatsScreen() {
               },
             });
           }}
-          disabled={!fitnessLevel}
           size="lg"
           fullWidth
+        />
+        <Button
+          title="Skip — I'll enter these later"
+          variant="ghost"
+          onPress={() => {
+            router.push({
+              pathname: '/(onboarding)/profile-details',
+              params: { ...params },
+            });
+          }}
+          size="md"
+          fullWidth
+          style={{ marginTop: spacing.sm }}
         />
       </Animated.View>
     </SafeAreaView>
@@ -254,15 +211,15 @@ export default function CurrentStatsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
   },
   header: {
-    paddingTop: spacing.xxl,
-    marginBottom: spacing.xxl,
+    paddingTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   step: {
     marginBottom: spacing.sm,
@@ -274,54 +231,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   sectionTitle: {
-    marginBottom: spacing.md,
-    marginTop: spacing.lg,
-  },
-  levels: {
-    gap: spacing.sm,
-  },
-  levelOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  levelSelected: {
-    borderColor: colors.primary,
-    backgroundColor: withOpacity(colors.primary, 0.06),
-  },
-  levelContent: {
-    flex: 1,
-  },
-  levelDescription: {
-    marginTop: 2,
-  },
-  checkmark: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: withOpacity(colors.primary, 0.15),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: spacing.sm,
-  },
-  statsSection: {
-    marginTop: spacing.lg,
-  },
-  statsDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginBottom: spacing.md,
-    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
   },
   input: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
   },
   footer: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
   },
 });

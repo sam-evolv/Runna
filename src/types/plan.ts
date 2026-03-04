@@ -1,4 +1,4 @@
-export type GoalType = 'running' | 'strength' | 'triathlon' | 'general_fitness';
+export type GoalType = 'running' | 'strength' | 'triathlon' | 'general_fitness' | 'hyrox' | 'endurance';
 
 export type GoalSubtype =
   | 'marathon'
@@ -18,7 +18,16 @@ export type GoalSubtype =
   | 'sprint_tri'
   | 'weight_loss'
   | 'flexibility'
-  | 'general_fitness';
+  | 'general_fitness'
+  | 'hyrox_singles'
+  | 'hyrox_doubles'
+  | 'hyrox_pro'
+  | 'hyrox_fitness'
+  | 'speed_training'
+  | 'beginner_strength'
+  | 'athletic_performance'
+  | 'swim'
+  | 'cycling';
 
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced' | 'elite';
 export type PlanStatus = 'active' | 'completed' | 'paused' | 'abandoned';

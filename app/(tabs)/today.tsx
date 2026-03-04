@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable } from
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Typography } from '@/components/ui/Typography';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -18,18 +19,25 @@ import {
   type FeelingLevel,
   type SpecificIssue,
 } from '@/services/feelingAdjustment';
-import {
-  WORKOUT_TYPE_OPTIONS,
-  TIME_OPTIONS,
-  generateInstantWorkout,
-  type InstantWorkoutCategory,
-  type IntensityLevel,
-} from '@/services/instantWorkout';
-import { getShoesWithWarnings, type Equipment } from '@/services/equipmentTracker';
 import { colors, spacing, borderRadius, workoutTypeColors, glass, withOpacity } from '@/constants/theme';
 import { formatWorkoutType, formatWorkoutDuration, formatDistance } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateUtils';
 import { isRunningWorkout, type RunningWorkoutData } from '@/types/workout';
+
+const FEELING_EMOJIS = [
+  { id: 'tired' as const, emoji: '\u{1F634}', label: 'Tired' },
+  { id: 'okay' as const, emoji: '\u{1F610}', label: 'Average' },
+  { id: 'good' as const, emoji: '\u{1F4AA}', label: 'Good' },
+  { id: 'great' as const, emoji: '\u{1F525}', label: 'Amazing' },
+];
+
+const AI_COACH_MESSAGES = [
+  "Focus on consistency this week. Every session counts toward your goal.",
+  "Recovery is when you get stronger. Rest days are as important as training days.",
+  "You're building a solid foundation. Trust the process.",
+  "Great work staying consistent. Your body is adapting well.",
+  "Remember: quality over quantity. Execute each rep with intention.",
+];
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -41,13 +49,7 @@ export default function TodayScreen() {
   const [selectedFeeling, setSelectedFeeling] = useState<FeelingLevel | null>(null);
   const [selectedIssues, setSelectedIssues] = useState<SpecificIssue[]>([]);
   const [adjustmentResult, setAdjustmentResult] = useState<string | null>(null);
-
-  const [showInstantModal, setShowInstantModal] = useState(false);
-  const [instantStep, setInstantStep] = useState<'type' | 'time' | 'intensity'>('type');
-  const [instantType, setInstantType] = useState<string | null>(null);
-  const [instantTime, setInstantTime] = useState<number | null>(null);
-
-  const [shoeWarnings] = useState<Equipment[]>([]);
+  const [feelingSelected, setFeelingSelected] = useState(false);
 
   const completedThisWeek = workouts.filter(
     (w) => w.week_number === (plan?.current_week ?? 1) && w.status === 'completed',
@@ -57,39 +59,11 @@ export default function TodayScreen() {
   ).length;
 
   const greeting = getGreeting();
+  const coachMessage = AI_COACH_MESSAGES[Math.floor(Date.now() / 86400000) % AI_COACH_MESSAGES.length];
 
-  const handleStartWithFeelingCheck = () => {
+  const handleStartWorkout = () => {
     if (!todayWorkout) return;
-    setShowFeelingCheck(true);
-  };
-
-  const handleFeelingSelected = (feeling: FeelingLevel) => {
-    setSelectedFeeling(feeling);
-    if (feeling === 'great' || feeling === 'good') {
-      if (todayWorkout) {
-        startWorkout(todayWorkout);
-        setShowFeelingCheck(false);
-        if (isRunningWorkout(todayWorkout.workout_data)) {
-          router.push('/workout/run-active');
-        } else {
-          router.push('/workout/active');
-        }
-      }
-    }
-  };
-
-  const handleIssuesConfirmed = () => {
-    if (!todayWorkout || !selectedFeeling) return;
-    const result = adjustWorkout(todayWorkout, selectedFeeling, selectedIssues);
-    if (result.wasAdjusted) {
-      setAdjustmentResult(result.explanation);
-      startWorkout(result.adjustedWorkout);
-    } else {
-      startWorkout(todayWorkout);
-    }
-    setShowFeelingCheck(false);
-    setSelectedFeeling(null);
-    setSelectedIssues([]);
+    startWorkout(todayWorkout);
     if (isRunningWorkout(todayWorkout.workout_data)) {
       router.push('/workout/run-active');
     } else {
@@ -97,32 +71,18 @@ export default function TodayScreen() {
     }
   };
 
-  const handleInstantWorkout = (intensity: IntensityLevel) => {
-    if (!instantType || !instantTime) return;
-    const workout = generateInstantWorkout({
-      workoutTypeId: instantType,
-      durationMinutes: instantTime,
-      intensity,
-    });
-    startWorkout(workout);
-    setShowInstantModal(false);
-    setInstantStep('type');
-    setInstantType(null);
-    setInstantTime(null);
-    if (isRunningWorkout(workout.workout_data)) {
-      router.push('/workout/run-active');
-    } else {
-      router.push('/workout/active');
+  const handleFeelingTap = (feeling: typeof FEELING_EMOJIS[number]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFeelingSelected(true);
+
+    if (feeling.id === 'tired' && todayWorkout) {
+      const result = adjustWorkout(todayWorkout, 'tired', ['previous_hard_session']);
+      if (result.wasAdjusted) {
+        setAdjustmentResult('Got it! Your workout has been adjusted.');
+      }
     }
   };
 
-  const toggleIssue = (issue: SpecificIssue) => {
-    setSelectedIssues((prev) =>
-      prev.includes(issue) ? prev.filter((i) => i !== issue) : [...prev, issue],
-    );
-  };
-
-  const warnShoes = getShoesWithWarnings(shoeWarnings);
   const workoutColor = todayWorkout
     ? workoutTypeColors[todayWorkout.workout_type] || colors.primary
     : colors.primary;
@@ -132,67 +92,32 @@ export default function TodayScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
-          <Typography variant="callout" color={colors.textTertiary}>
+          <Typography variant="callout" color={colors.textMuted}>
             {greeting}
           </Typography>
           <Typography variant="largeTitle">
             {user?.full_name?.split(' ')[0] || 'Athlete'}
           </Typography>
-        </Animated.View>
-
-        {/* Shoe warning */}
-        {warnShoes.length > 0 && (
-          <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.warningCard}>
-            <Typography variant="footnote" color={colors.warning}>
-              {'\uD83D\uDC5F'} {warnShoes[0].name} needs replacing — {Math.round(warnShoes[0].total_distance_km)}km logged
+          {plan && (
+            <Typography variant="caption1" color={colors.primary} style={{ marginTop: spacing.xs, fontWeight: '600' }}>
+              Week {plan.current_week} of {plan.total_weeks}
             </Typography>
-          </Animated.View>
-        )}
+          )}
+        </Animated.View>
 
         {/* Adjustment feedback */}
         {adjustmentResult && (
           <Pressable onPress={() => setAdjustmentResult(null)} style={styles.adjustmentCard}>
-            <Typography variant="footnote" color={colors.primary} style={{ flex: 1 }}>
+            <Typography variant="footnote" color={colors.success} style={{ flex: 1 }}>
               {adjustmentResult}
             </Typography>
-            <Typography variant="caption2" color={colors.textTertiary}>Dismiss</Typography>
+            <Typography variant="caption2" color={colors.textMuted}>Dismiss</Typography>
           </Pressable>
         )}
 
-        {/* Week Progress */}
-        {plan && (
-          <Animated.View entering={FadeInDown.delay(150).duration(400)}>
-            <Card style={styles.weekCard}>
-              <View style={styles.weekHeader}>
-                <View>
-                  <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' }}>
-                    WEEK {plan.current_week}
-                  </Typography>
-                  <Typography variant="title3" style={{ marginTop: 2 }}>
-                    {completedThisWeek} of {totalThisWeek} sessions
-                  </Typography>
-                </View>
-                <View style={styles.weekBadge}>
-                  <Typography variant="headline" color={colors.primary}>
-                    {totalThisWeek > 0 ? Math.round((completedThisWeek / totalThisWeek) * 100) : 0}%
-                  </Typography>
-                </View>
-              </View>
-              <ProgressBar
-                progress={totalThisWeek > 0 ? completedThisWeek / totalThisWeek : 0}
-                height={4}
-                style={{ marginTop: spacing.lg }}
-              />
-            </Card>
-          </Animated.View>
-        )}
-
-        {/* Today's Workout */}
+        {/* Today's Workout Card */}
         {todayWorkout ? (
-          <Animated.View entering={FadeInDown.delay(250).duration(500)} style={styles.section}>
-            <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>
-              TODAY'S SESSION
-            </Typography>
+          <Animated.View entering={FadeInDown.delay(150).duration(500)}>
             <Pressable
               onPress={() => router.push(`/workout/${todayWorkout.id}`)}
               style={[styles.workoutCard, { borderLeftColor: workoutColor }]}
@@ -202,7 +127,7 @@ export default function TodayScreen() {
                 color={workoutColor}
                 backgroundColor={withOpacity(workoutColor, 0.12)}
               />
-              <Typography variant="title2" style={{ marginTop: spacing.md }}>
+              <Typography variant="title1" style={{ marginTop: spacing.sm }}>
                 {todayWorkout.title}
               </Typography>
               {todayWorkout.description && (
@@ -223,18 +148,18 @@ export default function TodayScreen() {
 
               <Button
                 title="Start Workout"
-                onPress={handleStartWithFeelingCheck}
+                onPress={handleStartWorkout}
                 size="lg"
                 fullWidth
-                style={{ marginTop: spacing.xl }}
+                style={{ marginTop: spacing.lg }}
               />
             </Pressable>
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeInDown.delay(250).duration(500)}>
+          <Animated.View entering={FadeInDown.delay(150).duration(500)}>
             <View style={styles.restCard}>
               <Typography variant="title1" align="center" style={{ marginBottom: spacing.sm }}>
-                {'\uD83D\uDE34'}
+                {'\u{1F34C}'}
               </Typography>
               <Typography variant="title3" align="center">
                 Rest Day
@@ -242,40 +167,100 @@ export default function TodayScreen() {
               <Typography variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: spacing.sm }}>
                 Recovery is part of the plan.{'\n'}Your body builds strength while you rest.
               </Typography>
+              {workouts.filter((w) => w.status === 'scheduled').length > 0 && (
+                <View style={styles.nextWorkoutPreview}>
+                  <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
+                    NEXT UP
+                  </Typography>
+                  <Typography variant="callout" color={colors.textSecondary}>
+                    {workouts.filter((w) => w.status === 'scheduled')[0]?.title || 'Upcoming session'}
+                  </Typography>
+                </View>
+              )}
             </View>
           </Animated.View>
         )}
 
-        {/* Instant Workout */}
+        {/* Weekly Progress */}
+        {plan && (
+          <Animated.View entering={FadeInDown.delay(250).duration(400)}>
+            <View style={styles.weekCard}>
+              <View style={styles.weekHeader}>
+                <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '700', letterSpacing: 1.5 }}>
+                  WEEKLY PROGRESS
+                </Typography>
+                <Typography variant="headline" color={colors.primary}>
+                  {completedThisWeek}/{totalThisWeek}
+                </Typography>
+              </View>
+              <ProgressBar
+                progress={totalThisWeek > 0 ? completedThisWeek / totalThisWeek : 0}
+                height={6}
+                style={{ marginTop: spacing.sm }}
+              />
+            </View>
+          </Animated.View>
+        )}
+
+        {/* AI Coach Message */}
         <Animated.View entering={FadeInDown.delay(350).duration(400)}>
-          <TouchableOpacity
-            style={styles.instantButton}
-            onPress={() => setShowInstantModal(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.instantIcon}>
-              <Typography variant="title3" color={colors.primary}>+</Typography>
+          <View style={styles.coachCard}>
+            <View style={styles.coachHeader}>
+              <View style={styles.coachAvatar}>
+                <Typography variant="caption1" style={{ textAlign: 'center' }}>{'\u{1F9E0}'}</Typography>
+              </View>
+              <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '700' }}>AI COACH</Typography>
             </View>
-            <View style={{ flex: 1 }}>
-              <Typography variant="callout" style={{ fontWeight: '600' }}>
-                Instant Workout
+            <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.sm }}>
+              {coachMessage}
+            </Typography>
+            <TouchableOpacity
+              style={styles.coachButton}
+              onPress={() => router.push('/coach/chat' as any)}
+              activeOpacity={0.7}
+            >
+              <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '600' }}>
+                Chat with Coach
               </Typography>
-              <Typography variant="caption1" color={colors.textSecondary}>
-                Quick session outside your plan
-              </Typography>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
+        {/* How are you feeling? */}
+        {!feelingSelected && (
+          <Animated.View entering={FadeInDown.delay(450).duration(400)}>
+            <View style={styles.feelingCard}>
+              <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '700', letterSpacing: 1.5, marginBottom: spacing.sm }}>
+                HOW ARE YOU FEELING?
+              </Typography>
+              <View style={styles.feelingRow}>
+                {FEELING_EMOJIS.map((f) => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={styles.feelingOption}
+                    onPress={() => handleFeelingTap(f)}
+                    activeOpacity={0.7}
+                  >
+                    <Typography variant="title2" align="center">{f.emoji}</Typography>
+                    <Typography variant="caption2" color={colors.textMuted} style={{ marginTop: 2, textAlign: 'center' }}>
+                      {f.label}
+                    </Typography>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         {/* Coming Up */}
-        <Animated.View entering={FadeInDown.delay(450).duration(400)} style={styles.section}>
-          <Typography variant="caption1" color={colors.textTertiary} style={styles.sectionLabel}>
+        <Animated.View entering={FadeInDown.delay(550).duration(400)} style={styles.section}>
+          <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
             COMING UP
           </Typography>
           {workouts
             .filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id)
             .slice(0, 3)
-            .map((workout, idx) => (
+            .map((workout) => (
               <Pressable
                 key={workout.id}
                 style={styles.upcomingCard}
@@ -284,214 +269,19 @@ export default function TodayScreen() {
                 <View style={[styles.upcomingDot, { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary }]} />
                 <View style={styles.upcomingText}>
                   <Typography variant="callout" style={{ fontWeight: '500' }}>{workout.title}</Typography>
-                  <Typography variant="caption1" color={colors.textTertiary}>
+                  <Typography variant="caption1" color={colors.textMuted}>
                     {formatDate(workout.scheduled_date)} · {formatWorkoutDuration(workout.estimated_duration_minutes)}
                   </Typography>
                 </View>
               </Pressable>
             ))}
           {workouts.filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id).length === 0 && (
-            <Typography variant="callout" color={colors.textTertiary} style={{ paddingVertical: spacing.lg }}>
+            <Typography variant="callout" color={colors.textMuted} style={{ paddingVertical: spacing.md }}>
               No upcoming workouts
             </Typography>
           )}
         </Animated.View>
       </ScrollView>
-
-      {/* Feeling Check Modal */}
-      <Modal visible={showFeelingCheck} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            {!selectedFeeling || selectedFeeling === 'great' || selectedFeeling === 'good' ? (
-              <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>
-                  How are you feeling?
-                </Typography>
-                <Typography variant="footnote" color={colors.textSecondary} align="center" style={{ marginBottom: spacing.xl }}>
-                  We'll adjust your workout if needed
-                </Typography>
-                <View style={styles.feelingGrid}>
-                  {FEELING_OPTIONS.map((opt) => (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={styles.feelingCard}
-                      onPress={() => handleFeelingSelected(opt.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Typography variant="title2" align="center">{opt.emoji}</Typography>
-                      <Typography variant="callout" align="center" style={{ fontWeight: '600', marginTop: spacing.xs }}>
-                        {opt.label}
-                      </Typography>
-                      <Typography variant="caption2" color={colors.textSecondary} align="center" style={{ marginTop: 2 }}>
-                        {opt.description}
-                      </Typography>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Button
-                  title="Skip"
-                  variant="ghost"
-                  onPress={() => {
-                    setShowFeelingCheck(false);
-                    if (todayWorkout) {
-                      startWorkout(todayWorkout);
-                      if (isRunningWorkout(todayWorkout.workout_data)) {
-                        router.push('/workout/run-active');
-                      } else {
-                        router.push('/workout/active');
-                      }
-                    }
-                  }}
-                  fullWidth
-                  style={{ marginTop: spacing.md }}
-                />
-              </>
-            ) : (
-              <>
-                <Typography variant="title3" align="center" style={{ marginBottom: spacing.xs }}>
-                  What's going on?
-                </Typography>
-                <Typography variant="footnote" color={colors.textSecondary} align="center" style={{ marginBottom: spacing.xl }}>
-                  Select any that apply
-                </Typography>
-                <View style={styles.issueGrid}>
-                  {SPECIFIC_ISSUES.map((issue) => {
-                    const isSelected = selectedIssues.includes(issue.id);
-                    return (
-                      <TouchableOpacity
-                        key={issue.id}
-                        style={[styles.issueChip, isSelected && styles.issueChipSelected]}
-                        onPress={() => toggleIssue(issue.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Typography variant="footnote">{issue.emoji}</Typography>
-                        <Typography
-                          variant="caption1"
-                          color={isSelected ? colors.primary : colors.textSecondary}
-                          style={{ fontWeight: isSelected ? '600' : '400' }}
-                        >
-                          {issue.label}
-                        </Typography>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <Button
-                  title="Continue with Adjustment"
-                  onPress={handleIssuesConfirmed}
-                  fullWidth
-                  style={{ marginTop: spacing.xl }}
-                />
-                <Button
-                  title="Back"
-                  variant="ghost"
-                  onPress={() => setSelectedFeeling(null)}
-                  fullWidth
-                  style={{ marginTop: spacing.sm }}
-                />
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Instant Workout Modal */}
-      <Modal visible={showInstantModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <ScrollView style={{ maxHeight: '85%' }}>
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHandle} />
-
-              {instantStep === 'type' && (
-                <>
-                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                    What do you want to do?
-                  </Typography>
-                  {(['run', 'strength', 'recovery'] as InstantWorkoutCategory[]).map((cat) => {
-                    const items = WORKOUT_TYPE_OPTIONS.filter((o) => o.category === cat);
-                    return (
-                      <View key={cat} style={{ marginBottom: spacing.lg }}>
-                        <Typography variant="caption1" color={colors.textTertiary} style={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: spacing.sm }}>
-                          {cat}
-                        </Typography>
-                        {items.map((opt) => (
-                          <TouchableOpacity
-                            key={opt.id}
-                            style={styles.instantTypeRow}
-                            onPress={() => { setInstantType(opt.id); setInstantStep('time'); }}
-                            activeOpacity={0.7}
-                          >
-                            <Typography variant="body">{opt.emoji}</Typography>
-                            <View style={{ flex: 1 }}>
-                              <Typography variant="callout" style={{ fontWeight: '500' }}>{opt.label}</Typography>
-                              <Typography variant="caption2" color={colors.textSecondary}>{opt.description}</Typography>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
-                </>
-              )}
-
-              {instantStep === 'time' && (
-                <>
-                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                    How long?
-                  </Typography>
-                  <View style={styles.timeGrid}>
-                    {TIME_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.minutes}
-                        style={[styles.timeCard, instantTime === opt.minutes && styles.timeCardSelected]}
-                        onPress={() => { setInstantTime(opt.minutes); setInstantStep('intensity'); }}
-                        activeOpacity={0.7}
-                      >
-                        <Typography variant="title2" color={instantTime === opt.minutes ? colors.primary : colors.textPrimary} align="center">
-                          {opt.minutes}
-                        </Typography>
-                        <Typography variant="caption2" color={colors.textSecondary} align="center">min</Typography>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <Button title="Back" variant="ghost" onPress={() => setInstantStep('type')} fullWidth style={{ marginTop: spacing.md }} />
-                </>
-              )}
-
-              {instantStep === 'intensity' && (
-                <>
-                  <Typography variant="title3" align="center" style={{ marginBottom: spacing.xl }}>
-                    How hard?
-                  </Typography>
-                  {([
-                    { id: 'easy' as IntensityLevel, label: 'Easy', desc: 'Relaxed effort', color: colors.success },
-                    { id: 'moderate' as IntensityLevel, label: 'Moderate', desc: 'Steady, purposeful', color: colors.warning },
-                    { id: 'hard' as IntensityLevel, label: 'Hard', desc: 'Push yourself', color: colors.error },
-                  ]).map((opt) => (
-                    <TouchableOpacity key={opt.id} style={styles.intensityRow} onPress={() => handleInstantWorkout(opt.id)} activeOpacity={0.7}>
-                      <View style={[styles.intensityDot, { backgroundColor: opt.color }]} />
-                      <View style={{ flex: 1 }}>
-                        <Typography variant="callout" style={{ fontWeight: '600' }}>{opt.label}</Typography>
-                        <Typography variant="caption2" color={colors.textSecondary}>{opt.desc}</Typography>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                  <Button title="Back" variant="ghost" onPress={() => setInstantStep('time')} fullWidth style={{ marginTop: spacing.md }} />
-                </>
-              )}
-
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => { setShowInstantModal(false); setInstantStep('type'); setInstantType(null); setInstantTime(null); }}
-                fullWidth
-                style={{ marginTop: spacing.xs }}
-              />
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -499,7 +289,7 @@ export default function TodayScreen() {
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metaItem}>
-      <Typography variant="caption1" color={colors.textTertiary} style={{ letterSpacing: 0.5 }}>{label}</Typography>
+      <Typography variant="caption1" color={colors.textMuted} style={{ letterSpacing: 0.5 }}>{label}</Typography>
       <Typography variant="headline" style={{ marginTop: 2 }}>{value}</Typography>
     </View>
   );
@@ -518,26 +308,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.massive,
   },
   header: {
-    paddingTop: spacing.xl,
-    marginBottom: spacing.xxl,
-  },
-  warningCard: {
-    marginBottom: spacing.md,
-    backgroundColor: 'rgba(251,191,36,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(251,191,36,0.15)',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    paddingTop: spacing.lg,
+    marginBottom: spacing.lg,
   },
   adjustmentCard: {
     marginBottom: spacing.md,
-    backgroundColor: 'rgba(34,211,238,0.06)',
+    backgroundColor: withOpacity(colors.success, 0.08),
     borderWidth: 1,
-    borderColor: 'rgba(34,211,238,0.15)',
+    borderColor: withOpacity(colors.success, 0.15),
     borderRadius: borderRadius.md,
     padding: spacing.md,
     flexDirection: 'row',
@@ -545,76 +327,113 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
+  workoutCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderLeftWidth: 4,
+    marginBottom: spacing.md,
+  },
+  workoutMeta: {
+    flexDirection: 'row',
+    marginTop: spacing.lg,
+    gap: spacing.xl,
+  },
+  metaItem: {
+    gap: 2,
+  },
+  restCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  nextWorkoutPreview: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    width: '100%',
+  },
   weekCard: {
-    marginBottom: spacing.xxl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   weekHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(34,211,238,0.08)',
+  coachCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  coachHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  coachAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: withOpacity(colors.primary, 0.15),
     justifyContent: 'center',
     alignItems: 'center',
   },
+  coachButton: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: withOpacity(colors.primary, 0.1),
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  feelingCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  feelingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  feelingOption: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
   section: {
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
   },
   sectionLabel: {
     fontWeight: '700',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    marginBottom: spacing.md,
-  },
-  workoutCard: {
-    ...glass.card,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    borderLeftWidth: 3,
-  },
-  workoutMeta: {
-    flexDirection: 'row',
-    marginTop: spacing.xl,
-    gap: spacing.xxxl,
-  },
-  metaItem: {
-    gap: 2,
-  },
-  restCard: {
-    ...glass.card,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xxxl,
-    marginBottom: spacing.xxl,
-    alignItems: 'center',
-  },
-  instantButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...glass.card,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.xxl,
-    gap: spacing.md,
-    borderStyle: 'dashed',
-  },
-  instantIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(34,211,238,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   upcomingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    borderBottomColor: colors.border,
   },
   upcomingDot: {
     width: 8,
@@ -624,93 +443,5 @@ const styles = StyleSheet.create({
   },
   upcomingText: {
     flex: 1,
-  },
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#0A0A0A',
-    borderTopLeftRadius: borderRadius.xxl,
-    borderTopRightRadius: borderRadius.xxl,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.huge,
-    paddingTop: spacing.md,
-  },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignSelf: 'center',
-    marginBottom: spacing.xl,
-  },
-  feelingGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  feelingCard: {
-    ...glass.card,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-    flexGrow: 1,
-    flexBasis: '45%',
-  },
-  issueGrid: {
-    gap: spacing.sm,
-  },
-  issueChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    ...glass.card,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-  },
-  issueChipSelected: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(34,211,238,0.06)',
-  },
-  instantTypeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    justifyContent: 'center',
-  },
-  timeCard: {
-    width: 80,
-    paddingVertical: spacing.xl,
-    ...glass.card,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-  },
-  timeCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(34,211,238,0.06)',
-  },
-  intensityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
-  },
-  intensityDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
   },
 });

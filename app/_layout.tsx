@@ -1,8 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useAuth } from '@/hooks/useAuth';
 import { colors } from '@/constants/theme';
 
 export default function RootLayout() {
@@ -31,6 +29,10 @@ export default function RootLayout() {
         <Stack.Screen
           name="workout/run-active"
           options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="coach/chat"
+          options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
         />
       </Stack>
     </>

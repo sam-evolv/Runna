@@ -2,24 +2,31 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import { Typography } from '@/components/ui/Typography';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import { usePlanStore } from '@/stores/planStore';
 import { parseTimeToSeconds } from '@/utils/paceCalculator';
-import { colors, spacing } from '@/constants/theme';
+import { colors, spacing, withOpacity } from '@/constants/theme';
 import type { GoalType, GoalSubtype, FitnessLevel } from '@/types/plan';
 
 const loadingMessages = [
-  'Analysing your fitness profile...',
-  'Designing your periodisation...',
-  'Building your weekly structure...',
+  'Analysing your fitness level...',
+  'Building your personalised plan...',
+  'Scheduling your sessions...',
   'Optimising workout intensities...',
-  'Adding recovery sessions...',
-  'Fine-tuning your paces...',
-  'Finalising your plan...',
+  'Almost ready...',
 ];
 
 export default function GeneratingScreen() {
@@ -34,11 +41,28 @@ export default function GeneratingScreen() {
   const [error, setError] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
 
+  const pulseOpacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    pulseOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.7, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
+    );
+  }, []);
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+  }));
+
   useEffect(() => {
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-      setProgress((prev) => Math.min(prev + 0.12, 0.95));
-    }, 2500);
+      setProgress((prev) => Math.min(prev + 0.15, 0.95));
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -87,7 +111,6 @@ export default function GeneratingScreen() {
         notes: null,
       };
 
-      // Update user profile first, then use fresh user for plan generation
       const profileUpdates: Record<string, unknown> = {};
       if (params.weight) profileUpdates.weight_kg = Number(params.weight);
       if (params.height) profileUpdates.height_cm = Number(params.height);
@@ -101,7 +124,6 @@ export default function GeneratingScreen() {
         await useAuthStore.getState().updateProfile(profileUpdates as any);
       }
 
-      // Get fresh user from store AFTER profile update so AI has correct weight/height/age
       const freshUser = useAuthStore.getState().user;
       if (!freshUser) {
         setError('User session expired. Please sign in again.');
@@ -140,6 +162,9 @@ export default function GeneratingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Background glow */}
+      <Animated.View style={[styles.bgGlow, glowStyle]} />
+
       <View style={styles.content}>
         <Animated.View entering={FadeIn.duration(600)}>
           <Typography variant="caption1" color={colors.primary} align="center" style={styles.step}>
@@ -188,7 +213,7 @@ export default function GeneratingScreen() {
               onPress={handleRetry}
               size="lg"
               fullWidth
-              style={{ marginTop: spacing.xl }}
+              style={{ marginTop: spacing.lg }}
             />
             <Button
               title="Go Back"
@@ -219,8 +244,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: 'center',
   },
+  bgGlow: {
+    position: 'absolute',
+    top: '30%',
+    left: '50%',
+    marginLeft: -100,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: colors.primary,
+  },
   content: {
-    paddingHorizontal: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
   },
   step: {
@@ -229,30 +264,30 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    marginBottom: spacing.huge,
+    marginBottom: spacing.xxl,
   },
   progressArea: {
     width: '100%',
     alignItems: 'center',
   },
   percentContainer: {
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
   },
   progressBar: {
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
   },
   message: {
     minHeight: 44,
   },
   errorArea: {
     width: '100%',
-    marginTop: spacing.xxl,
+    marginTop: spacing.lg,
   },
   errorCard: {
-    backgroundColor: 'rgba(248,113,113,0.08)',
+    backgroundColor: withOpacity(colors.error, 0.08),
     borderWidth: 1,
-    borderColor: 'rgba(248,113,113,0.15)',
+    borderColor: withOpacity(colors.error, 0.15),
     borderRadius: 16,
-    padding: spacing.xl,
+    padding: spacing.lg,
   },
 });

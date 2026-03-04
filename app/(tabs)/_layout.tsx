@@ -14,15 +14,15 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0A0A0A',
-          borderTopColor: 'rgba(255,255,255,0.06)',
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
           height: 88,
           paddingTop: spacing.sm,
-          paddingBottom: spacing.xxl,
+          paddingBottom: spacing.lg,
         },
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarShowLabel: false,
       }}
     >
@@ -40,7 +40,7 @@ export default function TabsLayout() {
         options={{
           title: 'Plan',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDCC5'} label="Plan" color={color} focused={focused} />
+            <TabIcon icon={'\u{1F4C5}'} label="Plan" color={color} focused={focused} />
           ),
         }}
       />
@@ -49,7 +49,7 @@ export default function TabsLayout() {
         options={{
           title: 'Activity',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDCCA'} label="Activity" color={color} focused={focused} />
+            <TabIcon icon={'\u{1F4CA}'} label="Activity" color={color} focused={focused} />
           ),
         }}
       />
@@ -58,7 +58,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDC64'} label="Profile" color={color} focused={focused} />
+            <TabIcon icon={'\u{1F464}'} label="Profile" color={color} focused={focused} />
           ),
         }}
       />
