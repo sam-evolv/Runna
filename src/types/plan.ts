@@ -69,6 +69,9 @@ export interface UserStats {
   injury_history: string | null;
   equipment_available: string[] | null;
   gym_access: boolean;
+  gym_limitations: string | null;
+  physique_goal: string | null;
+  body_fat_estimate: number | null;
   notes: string | null;
   created_at: string;
 }
