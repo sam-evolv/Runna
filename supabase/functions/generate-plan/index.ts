@@ -5,8 +5,10 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const NVIDIA_API_KEY = Deno.env.get('NVIDIA_API_KEY')!;
+const NVIDIA_MODEL = 'meta/llama-3.3-70b-instruct';
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+
 
 interface PlanRequest {
   user: {
@@ -207,18 +209,20 @@ serve(async (req) => {
     const planRequest: PlanRequest = await req.json();
     const systemPrompt = buildSystemPrompt(planRequest);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
       },
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
+        model: NVIDIA_MODEL,
         max_tokens: 8192,
-        system: systemPrompt,
         messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
           {
             role: 'user',
             content: 'Generate the training plan now. Respond with JSON only.',
@@ -229,11 +233,11 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Claude API error: ${response.status} - ${errorBody}`);
+      throw new Error(`NVIDIA API error: ${response.status} - ${errorBody}`);
     }
 
-    const claudeResponse = await response.json();
-    const content = claudeResponse.content[0]?.text;
+    const nvidiaResponse = await response.json();
+    const content = nvidiaResponse.choices[0]?.message?.content;
 
     if (!content) {
       throw new Error('Empty response from Claude');

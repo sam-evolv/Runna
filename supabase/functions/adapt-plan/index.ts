@@ -6,10 +6,11 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
+const NVIDIA_API_KEY = Deno.env.get('NVIDIA_API_KEY')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+const NVIDIA_MODEL = 'meta/llama-3.3-70b-instruct';
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 interface AdaptRequest {
   plan_id: string;
@@ -122,26 +123,25 @@ Respond with JSON:
 }`;
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${NVIDIA_API_KEY}`,
       },
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
+        model: NVIDIA_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Claude API error: ${response.status}`);
+      throw new Error(`NVIDIA API error: ${response.status}`);
     }
 
-    const claudeResponse = await response.json();
-    let content = claudeResponse.content[0]?.text || '{}';
+    const nvidiaResponse = await response.json();
+    let content = nvidiaResponse.choices[0]?.message?.content || '{}';
 
     if (content.includes('```json')) {
       content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '');
