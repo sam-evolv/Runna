@@ -61,6 +61,6 @@ export default function PlanReadyScreen() {
   const { createGoalAndGeneratePlan, currentPlan, workouts, isGenerating, generationProgress } = usePlanStore();
 
   const [error, setError] = useState<string | null>(null);
-  const [planGenerated, setPlanGenerated] = useState(false);(false);
+  const [planGenerated, setPlanGenerated] = useState(false);
 
   const accentColor = sportColors[goalType || 'general_fitness'] || colors.general;
