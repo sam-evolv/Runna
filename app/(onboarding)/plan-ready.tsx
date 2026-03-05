@@ -63,4 +63,4 @@ export default function PlanReadyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [planGenerated, setPlanGenerated] = useState(false);
 
-  const accentColor = sportColors[goalType || 'general_fitness'] || colors.general;
+  const accentColor = (sportColors as Record<string, string>)[goalType || 'general_fitness'] || colors.general;
