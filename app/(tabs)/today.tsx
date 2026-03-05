@@ -300,7 +300,7 @@ export default function TodayScreen() {
   } = usePlan();
 
   // Use demo data when on web or when real data is empty
-  const isDemo = Platform.OS === 'web' || (!realTodayWorkout && realWorkouts.length === 0);
+  const isDemo = !realTodayWorkout && realWorkouts.length === 0;
 
   const todayWorkout = isDemo ? DEMO_WORKOUTS[0] : realTodayWorkout;
   const workouts = isDemo ? DEMO_WORKOUTS : realWorkouts;
