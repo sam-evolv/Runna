@@ -174,9 +174,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
+    ...glass.card,
     borderRadius: borderRadius.md,
     marginBottom: 2,
-    ...glass.card,
     overflow: 'hidden',
   },
   setCompleted: {

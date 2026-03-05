@@ -13,16 +13,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          height: 88,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.lg,
-        },
+        tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarInactiveTintColor: '#4B5563',
         tabBarShowLabel: false,
       }}
     >
@@ -40,7 +33,7 @@ export default function TabsLayout() {
         options={{
           title: 'Plan',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\u{1F4C5}'} label="Plan" color={color} focused={focused} />
+            <TabIcon icon={'\uD83D\uDCC5'} label="Plan" color={color} focused={focused} />
           ),
         }}
       />
@@ -49,7 +42,7 @@ export default function TabsLayout() {
         options={{
           title: 'Activity',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\u{1F4CA}'} label="Activity" color={color} focused={focused} />
+            <TabIcon icon={'\uD83D\uDCCA'} label="Activity" color={color} focused={focused} />
           ),
         }}
       />
@@ -58,7 +51,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\u{1F464}'} label="Profile" color={color} focused={focused} />
+            <TabIcon icon={'\uD83D\uDC64'} label="Profile" color={color} focused={focused} />
           ),
         }}
       />
@@ -66,41 +59,81 @@ export default function TabsLayout() {
   );
 }
 
-function TabIcon({ icon, label, color, focused }: { icon: string; label: string; color: string; focused: boolean }) {
+function TabIcon({
+  icon,
+  label,
+  color,
+  focused,
+}: {
+  icon: string;
+  label: string;
+  color: string;
+  focused: boolean;
+}) {
   const scale = useSharedValue(1);
+  const dotScale = useSharedValue(focused ? 1 : 0);
   const dotOpacity = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
-    scale.value = withSpring(focused ? 1.1 : 1, animation.spring.snappy);
+    scale.value = withSpring(focused ? 1.15 : 1, animation.spring.snappy);
+    dotScale.value = withSpring(focused ? 1 : 0, animation.spring.snappy);
     dotOpacity.value = withSpring(focused ? 1 : 0, animation.spring.snappy);
   }, [focused]);
 
-  const iconStyle = useAnimatedStyle(() => ({
+  const iconAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  const dotStyle = useAnimatedStyle(() => ({
+  const dotAnimStyle = useAnimatedStyle(() => ({
     opacity: dotOpacity.value,
-    transform: [{ scale: dotOpacity.value }],
+    transform: [{ scale: dotScale.value }],
   }));
 
   return (
     <View style={styles.tabContainer}>
-      <Animated.View style={iconStyle}>
-        <Text style={[styles.tabEmoji, { opacity: focused ? 1 : 0.45 }]}>{icon}</Text>
+      <Animated.View style={iconAnimStyle}>
+        <Text
+          style={[
+            styles.tabEmoji,
+            { opacity: focused ? 1 : 0.4 },
+          ]}
+        >
+          {icon}
+        </Text>
       </Animated.View>
-      <Text style={[styles.tabLabel, { color, fontWeight: focused ? '600' : '400' }]}>{label}</Text>
-      <Animated.View style={[styles.activeDot, dotStyle]} />
+      <Text
+        style={[
+          styles.tabLabel,
+          {
+            color,
+            fontWeight: focused ? '600' : '400',
+            opacity: focused ? 1 : 0.6,
+          },
+        ]}
+      >
+        {label}
+      </Text>
+      <Animated.View style={[styles.activeDot, dotAnimStyle]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: colors.background,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    height: 88,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    elevation: 0,
+  },
   tabContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    minWidth: 56,
+    minWidth: 60,
+    paddingTop: 2,
   },
   tabEmoji: {
     fontSize: 22,
@@ -109,12 +142,13 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
   activeDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.primary,
-    marginTop: 1,
+    marginTop: 2,
   },
 });

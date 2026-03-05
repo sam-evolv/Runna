@@ -1,227 +1,283 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Text,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { Typography } from '@/components/ui/Typography';
-import { Badge } from '@/components/ui/Badge';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { SkeletonCard } from '@/components/ui/SkeletonLoader';
-import { useAuthStore } from '@/stores/authStore';
-import { supabase } from '@/services/api';
-import { colors, spacing, borderRadius, workoutTypeColors, withOpacity } from '@/constants/theme';
-import { formatWorkoutType, formatWorkoutDuration, formatDistance, formatPaceWithUnit } from '@/utils/formatters';
-import { formatRelative } from '@/utils/dateUtils';
-import type { Activity } from '@/types/activity';
+import { useAuth } from '@/hooks/useAuth';
+import { usePlan } from '@/hooks/usePlan';
+import {
+  colors,
+  spacing,
+  borderRadius,
+  workoutTypeColors,
+  withOpacity,
+  shadows,
+} from '@/constants/theme';
 
-// Mock PRs for display
-const MOCK_PRS = [
-  { exercise: 'Bench Press', value: '80kg', date: '2 days ago' },
-  { exercise: '5K Run', value: '24:30', date: '1 week ago' },
-  { exercise: 'Squat', value: '100kg', date: '1 week ago' },
-  { exercise: 'Deadlift', value: '120kg', date: '2 weeks ago' },
-  { exercise: '10K Run', value: '52:15', date: '3 weeks ago' },
+// ─── Types ──────────────────────────────────────────────────────────────────────
+interface WeekDay {
+  label: string;
+  type: string;
+  value: number; // 0..1 normalised bar height
+}
+
+interface PersonalRecord {
+  exercise: string;
+  value: string;
+  date: string;
+  icon: string;
+}
+
+interface RecentActivity {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  duration: string;
+  detail: string;
+}
+
+// ─── Mock Data ──────────────────────────────────────────────────────────────────
+const MOCK_WEEK_DAYS: WeekDay[] = [
+  { label: 'Mon', type: 'easy_run', value: 0.55 },
+  { label: 'Tue', type: 'strength', value: 0.7 },
+  { label: 'Wed', type: 'rest', value: 0.0 },
+  { label: 'Thu', type: 'interval_run', value: 0.85 },
+  { label: 'Fri', type: 'strength', value: 0.65 },
+  { label: 'Sat', type: 'long_run', value: 1.0 },
+  { label: 'Sun', type: 'rest', value: 0.0 },
 ];
 
+const MOCK_PRS: PersonalRecord[] = [
+  { exercise: '5K Run', value: '23:42', date: 'Mar 1, 2026', icon: '\u{1F3C3}' },
+  { exercise: 'Bench Press', value: '85 kg', date: 'Feb 24, 2026', icon: '\u{1F4AA}' },
+  { exercise: 'Deadlift', value: '140 kg', date: 'Feb 20, 2026', icon: '\u{1F525}' },
+  { exercise: '10K Run', value: '51:08', date: 'Feb 15, 2026', icon: '\u{1F3C5}' },
+  { exercise: 'Squat', value: '110 kg', date: 'Feb 10, 2026', icon: '\u26A1' },
+];
+
+const MOCK_RECENT: RecentActivity[] = [
+  { id: '1', name: 'Easy Run', type: 'easy_run', date: 'Today', duration: '38 min', detail: '5.2 km' },
+  { id: '2', name: 'Upper Body Strength', type: 'strength', date: 'Yesterday', duration: '52 min', detail: '6 exercises' },
+  { id: '3', name: 'Interval Run', type: 'interval_run', date: '2 days ago', duration: '45 min', detail: '6.8 km' },
+  { id: '4', name: 'Lower Body Strength', type: 'strength', date: '3 days ago', duration: '48 min', detail: '5 exercises' },
+  { id: '5', name: 'Long Run', type: 'long_run', date: '5 days ago', duration: '1h 12m', detail: '14.3 km' },
+  { id: '6', name: 'Recovery Run', type: 'recovery_run', date: '6 days ago', duration: '25 min', detail: '3.5 km' },
+];
+
+// ─── Training Load Data ─────────────────────────────────────────────────────────
+const TRAINING_LOAD = [
+  { label: 'Form', value: 0.72, color: colors.success },
+  { label: 'Fitness', value: 0.85, color: '#3B82F6' },
+  { label: 'Fatigue', value: 0.45, color: colors.running },
+];
+
+// ─── Component ──────────────────────────────────────────────────────────────────
 export default function ActivityScreen() {
-  const user = useAuthStore((s) => s.user);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentStreak, setCurrentStreak] = useState(0);
+  const { user } = useAuth();
+  const { workouts } = usePlan();
 
-  useEffect(() => {
-    if (!user?.id) return;
-    loadActivities();
-  }, [user?.id]);
-
-  const loadActivities = async () => {
-    setIsLoading(true);
-    const { data } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('started_at', { ascending: false })
-      .limit(50);
-    setActivities(data || []);
-    setIsLoading(false);
-
-    // Calculate streak
-    if (data && data.length > 0) {
-      let streak = 0;
+  // Derive weekly stats from real workouts, fall back to mock for web
+  const weekStats = useMemo(() => {
+    if (Platform.OS !== 'web' && workouts.length > 0) {
       const now = new Date();
-      for (let i = 0; i < 30; i++) {
-        const checkDate = new Date(now);
-        checkDate.setDate(now.getDate() - i);
-        const dateStr = checkDate.toISOString().split('T')[0];
-        const hasActivity = data.some((a: Activity) => a.started_at.startsWith(dateStr));
-        if (hasActivity || i === 0) {
-          if (hasActivity) streak++;
-        } else {
-          break;
-        }
-      }
-      setCurrentStreak(streak);
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay() + 1);
+      weekStart.setHours(0, 0, 0, 0);
+
+      const thisWeek = workouts.filter((w) => {
+        if (!w.completed_at) return false;
+        return new Date(w.completed_at) >= weekStart;
+      });
+
+      const sessions = thisWeek.length;
+      const totalMinutes = thisWeek.reduce((s, w) => s + (w.estimated_duration_minutes || 0), 0);
+      const hours = (totalMinutes / 60).toFixed(1);
+      return { sessions, hours, distance: '--' };
     }
-  };
+    // Web demo mock
+    return { sessions: 5, hours: '4.2', distance: '32.6 km' };
+  }, [workouts]);
 
-  const thisWeekActivities = activities.filter((a) => {
-    const activityDate = new Date(a.started_at);
-    const now = new Date();
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay() + 1);
-    weekStart.setHours(0, 0, 0, 0);
-    return activityDate >= weekStart;
-  });
-
-  const weeklyDistanceKm = thisWeekActivities.reduce((sum, a) => sum + (a.distance_km || 0), 0);
-  const weeklyDurationMin = thisWeekActivities.reduce((sum, a) => sum + ((a.duration_seconds || 0) / 60), 0);
+  const streakDays = 12; // Mock streak
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* ── Header ──────────────────────────────────────────────── */}
       <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
-        <Typography variant="largeTitle">Activity</Typography>
+        <Text style={styles.largeTitle}>Activity</Text>
       </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* This Week Stats */}
-        <Animated.View entering={FadeInDown.delay(100).duration(400)}>
-          <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
-            THIS WEEK
-          </Typography>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── This Week Stats ───────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(80).duration(400)}>
+          <Text style={styles.sectionLabel}>THIS WEEK</Text>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Typography variant="title2" color={colors.primary}>{thisWeekActivities.length}</Typography>
-              <Typography variant="caption2" color={colors.textMuted}>Sessions</Typography>
+              <Text style={[styles.statValue, { color: colors.primary }]}>
+                {weekStats.sessions}
+              </Text>
+              <Text style={styles.statLabel}>Sessions</Text>
             </View>
             <View style={styles.statCard}>
-              <Typography variant="title2" color={colors.secondary}>{formatWorkoutDuration(Math.round(weeklyDurationMin))}</Typography>
-              <Typography variant="caption2" color={colors.textMuted}>Time</Typography>
+              <Text style={[styles.statValue, { color: colors.secondary }]}>
+                {weekStats.hours}h
+              </Text>
+              <Text style={styles.statLabel}>Time</Text>
             </View>
             <View style={styles.statCard}>
-              <Typography variant="title2" color={colors.accent}>{formatDistance(weeklyDistanceKm)}</Typography>
-              <Typography variant="caption2" color={colors.textMuted}>Distance</Typography>
+              <Text style={[styles.statValue, { color: '#F97316' }]}>
+                {weekStats.distance}
+              </Text>
+              <Text style={styles.statLabel}>Distance</Text>
             </View>
           </View>
         </Animated.View>
 
-        {/* Streak */}
-        <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-          <View style={styles.streakCard}>
-            <Typography variant="title2" style={{ marginRight: spacing.sm }}>
-              {'\u{1F525}'}
-            </Typography>
-            <View style={{ flex: 1 }}>
-              <Typography variant="headline">{currentStreak} day streak</Typography>
-              <Typography variant="caption2" color={colors.textMuted}>Keep it going!</Typography>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Personal Records */}
-        <Animated.View entering={FadeInDown.delay(300).duration(400)}>
-          <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
-            PERSONAL RECORDS
-          </Typography>
-          {MOCK_PRS.map((pr, idx) => (
-            <View key={idx} style={styles.prRow}>
-              <Typography variant="callout" style={{ marginRight: spacing.sm }}>{'\u{1F3C6}'}</Typography>
-              <View style={{ flex: 1 }}>
-                <Typography variant="callout" style={{ fontWeight: '500' }}>{pr.exercise}</Typography>
-                <Typography variant="caption2" color={colors.textMuted}>{pr.date}</Typography>
-              </View>
-              <Typography variant="headline" color={colors.primary}>{pr.value}</Typography>
-            </View>
-          ))}
-        </Animated.View>
-
-        {/* Strength Progress Chart (simple SVG) */}
-        <Animated.View entering={FadeInDown.delay(400).duration(400)}>
-          <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
-            STRENGTH PROGRESS
-          </Typography>
+        {/* ── Weekly Volume Chart ────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(160).duration(400)}>
+          <Text style={styles.sectionLabel}>WEEKLY VOLUME</Text>
           <View style={styles.chartCard}>
-            <View style={styles.chartPlaceholder}>
-              <View style={styles.chartBars}>
-                {[40, 55, 50, 65, 60, 72, 68, 80].map((height, i) => (
-                  <View key={i} style={styles.chartBarCol}>
-                    <View style={[styles.chartBar, { height: height, backgroundColor: withOpacity(colors.primary, 0.7 + i * 0.03) }]} />
-                    <Typography variant="caption2" color={colors.textMuted} style={{ marginTop: 4, textAlign: 'center' }}>
-                      W{i + 1}
-                    </Typography>
+            <View style={styles.chartBarsContainer}>
+              {MOCK_WEEK_DAYS.map((day) => {
+                const barColor =
+                  day.value === 0
+                    ? withOpacity(colors.textMuted, 0.15)
+                    : workoutTypeColors[day.type] || colors.primary;
+                const barHeight = Math.max(day.value * 120, day.value > 0 ? 12 : 6);
+
+                return (
+                  <View key={day.label} style={styles.barColumn}>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: barHeight,
+                            backgroundColor: barColor,
+                            borderRadius: 6,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.barLabel}>{day.label}</Text>
                   </View>
-                ))}
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ── Streak ────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(240).duration(400)}>
+          <View style={styles.streakCard}>
+            <View style={styles.streakLeft}>
+              <Text style={styles.streakEmoji}>{'\u{1F525}'}</Text>
+              <View>
+                <Text style={styles.streakTitle}>{streakDays} Day Streak</Text>
+                <Text style={styles.streakSubtitle}>
+                  You're on fire! Keep the momentum going.
+                </Text>
               </View>
             </View>
           </View>
         </Animated.View>
 
-        {/* Recent Activities */}
-        <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
-          RECENT ACTIVITIES
-        </Typography>
-
-        {isLoading && (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        )}
-
-        {activities.length === 0 && !isLoading && (
-          <EmptyState
-            icon={'\u{1F3C3}'}
-            title="No activities yet"
-            message="Complete your first workout and it will appear here"
-          />
-        )}
-
-        {activities.slice(0, 10).map((activity, idx) => (
-          <Animated.View key={activity.id} entering={FadeInDown.delay(500 + idx * 60).duration(400)}>
-            <View style={styles.activityCard}>
-              <View style={styles.activityHeader}>
-                <View style={[styles.activityIcon, { backgroundColor: withOpacity(workoutTypeColors[activity.activity_type] || colors.primary, 0.15) }]}>
-                  <Typography variant="caption1" style={{ textAlign: 'center' }}>
-                    {activity.activity_type.includes('run') ? '\u{1F3C3}' : '\u{1F4AA}'}
-                  </Typography>
+        {/* ── Personal Records ──────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(320).duration(400)}>
+          <Text style={styles.sectionLabel}>PERSONAL RECORDS</Text>
+          <View style={styles.prsCard}>
+            {MOCK_PRS.map((pr, idx) => (
+              <View
+                key={pr.exercise}
+                style={[
+                  styles.prRow,
+                  idx < MOCK_PRS.length - 1 && styles.prRowBorder,
+                ]}
+              >
+                <View style={styles.prIconWrap}>
+                  <Text style={styles.prIcon}>{pr.icon}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Typography variant="callout" style={{ fontWeight: '500' }}>
-                    {formatWorkoutType(activity.activity_type)}
-                  </Typography>
-                  <Typography variant="caption2" color={colors.textMuted}>
-                    {formatRelative(activity.started_at)}
-                  </Typography>
+                <View style={styles.prInfo}>
+                  <Text style={styles.prExercise}>{pr.exercise}</Text>
+                  <Text style={styles.prDate}>{pr.date}</Text>
                 </View>
+                <Text style={styles.prValue}>{pr.value}</Text>
               </View>
+            ))}
+          </View>
+        </Animated.View>
 
-              <View style={styles.activityStats}>
-                {activity.duration_seconds != null && activity.duration_seconds > 0 && (
-                  <View style={styles.statItem}>
-                    <Typography variant="headline">{formatWorkoutDuration(Math.round(activity.duration_seconds / 60))}</Typography>
-                    <Typography variant="caption2" color={colors.textMuted}>Duration</Typography>
-                  </View>
-                )}
-                {activity.distance_km != null && activity.distance_km > 0 && (
-                  <View style={styles.statItem}>
-                    <Typography variant="headline">{formatDistance(activity.distance_km)}</Typography>
-                    <Typography variant="caption2" color={colors.textMuted}>Distance</Typography>
-                  </View>
-                )}
-                {activity.avg_pace_min_km != null && activity.avg_pace_min_km > 0 && (
-                  <View style={styles.statItem}>
-                    <Typography variant="headline">{formatPaceWithUnit(activity.avg_pace_min_km)}</Typography>
-                    <Typography variant="caption2" color={colors.textMuted}>Pace</Typography>
-                  </View>
-                )}
+        {/* ── Training Load ─────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(400).duration(400)}>
+          <Text style={styles.sectionLabel}>TRAINING LOAD</Text>
+          <View style={styles.loadCard}>
+            {TRAINING_LOAD.map((item) => (
+              <View key={item.label} style={styles.loadRow}>
+                <Text style={styles.loadLabel}>{item.label}</Text>
+                <View style={styles.loadBarTrack}>
+                  <View
+                    style={[
+                      styles.loadBarFill,
+                      {
+                        width: `${item.value * 100}%`,
+                        backgroundColor: item.color,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.loadPercent, { color: item.color }]}>
+                  {Math.round(item.value * 100)}%
+                </Text>
               </View>
-            </View>
-          </Animated.View>
-        ))}
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* ── Recent Activities ──────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(480).duration(400)}>
+          <Text style={styles.sectionLabel}>RECENT ACTIVITIES</Text>
+          {MOCK_RECENT.map((activity, idx) => {
+            const dotColor =
+              workoutTypeColors[activity.type] || colors.primary;
+            return (
+              <Animated.View
+                key={activity.id}
+                entering={FadeInDown.delay(520 + idx * 60).duration(350)}
+              >
+                <View style={styles.activityCard}>
+                  <View style={styles.activityLeft}>
+                    <View
+                      style={[styles.activityDot, { backgroundColor: dotColor }]}
+                    />
+                    <View style={styles.activityInfo}>
+                      <Text style={styles.activityName}>{activity.name}</Text>
+                      <Text style={styles.activityDate}>{activity.date}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.activityRight}>
+                    <Text style={styles.activityDuration}>{activity.duration}</Text>
+                    <Text style={styles.activityDetail}>{activity.detail}</Text>
+                  </View>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -232,99 +288,250 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
+  largeTitle: {
+    color: colors.textPrimary,
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
   scrollContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.massive,
+    paddingBottom: 120,
   },
   sectionLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
     marginBottom: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
+
+  // Stats row
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
   },
   statCard: {
     flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     alignItems: 'center',
   },
-  streakCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-  prRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+  statLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
   },
+
+  // Chart
   chartCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
-    marginBottom: spacing.sm,
+    paddingTop: spacing.lg,
   },
-  chartPlaceholder: {
+  chartBarsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 140,
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  barTrack: {
     height: 120,
     justifyContent: 'flex-end',
-  },
-  chartBars: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: 100,
-  },
-  chartBarCol: {
     alignItems: 'center',
+    width: '100%',
+  },
+  bar: {
+    width: 22,
+    minHeight: 6,
+  },
+  barLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+  },
+
+  // Streak
+  streakCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: withOpacity('#F97316', 0.2),
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+  streakLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  streakEmoji: {
+    fontSize: 32,
+  },
+  streakTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  streakSubtitle: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  // Personal Records
+  prsCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+  },
+  prRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  prRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  prIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: withOpacity(colors.primary, 0.1),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  prIcon: {
+    fontSize: 18,
+  },
+  prInfo: {
     flex: 1,
   },
-  chartBar: {
-    width: 16,
+  prExercise: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  prDate: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  prValue: {
+    color: colors.primary,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+
+  // Training Load
+  loadCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  loadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  loadLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    width: 56,
+  },
+  loadBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: withOpacity(colors.textMuted, 0.12),
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  loadBarFill: {
+    height: '100%',
     borderRadius: 4,
   },
+  loadPercent: {
+    fontSize: 13,
+    fontWeight: '700',
+    width: 40,
+    textAlign: 'right',
+  },
+
+  // Recent Activities
   activityCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
-  },
-  activityHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  activityIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  activityStats: {
+  activityLeft: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
   },
-  statItem: {
-    gap: 2,
+  activityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityName: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  activityDate: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  activityRight: {
+    alignItems: 'flex-end',
+  },
+  activityDuration: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activityDetail: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

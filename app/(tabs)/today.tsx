@@ -1,299 +1,200 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Typography } from '@/components/ui/Typography';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { format, addDays } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
-import { useAuthStore } from '@/stores/authStore';
-import { useWorkout } from '@/hooks/useWorkout';
 import {
-  FEELING_OPTIONS,
-  SPECIFIC_ISSUES,
-  adjustWorkout,
-  type FeelingLevel,
-  type SpecificIssue,
-} from '@/services/feelingAdjustment';
-import { colors, spacing, borderRadius, workoutTypeColors, glass, withOpacity } from '@/constants/theme';
-import { formatWorkoutType, formatWorkoutDuration, formatDistance } from '@/utils/formatters';
-import { formatDate } from '@/utils/dateUtils';
-import { isRunningWorkout, type RunningWorkoutData } from '@/types/workout';
+  colors,
+  spacing,
+  borderRadius,
+  typography,
+  workoutTypeColors,
+  withOpacity,
+  shadows,
+} from '@/constants/theme';
+import type { Workout, WorkoutType } from '@/types/workout';
 
-const FEELING_EMOJIS = [
-  { id: 'tired' as const, emoji: '\u{1F634}', label: 'Tired' },
-  { id: 'okay' as const, emoji: '\u{1F610}', label: 'Average' },
-  { id: 'good' as const, emoji: '\u{1F4AA}', label: 'Good' },
-  { id: 'great' as const, emoji: '\u{1F525}', label: 'Amazing' },
+// ─── Demo Data ──────────────────────────────────────────────────────────────
+// Ensures the app looks great on web deployment and when Supabase data is empty.
+
+function makeDemoDate(offsetDays: number): string {
+  return format(addDays(new Date(), offsetDays), 'yyyy-MM-dd');
+}
+
+const DEMO_WORKOUTS: Workout[] = [
+  {
+    id: 'demo-1',
+    plan_id: 'demo-plan',
+    user_id: 'web-demo',
+    week_number: 1,
+    day_of_week: new Date().getDay() || 7,
+    scheduled_date: makeDemoDate(0),
+    workout_type: 'tempo_run' as WorkoutType,
+    title: 'Tempo Run',
+    description:
+      'Build lactate threshold with sustained effort. Warm up 10 min, then 20 min at tempo pace, cool down 10 min.',
+    workout_data: {
+      type: 'tempo_run' as const,
+      total_distance_km: 8.5,
+      segments: [
+        { type: 'warmup' as const, distance_km: 2, target_pace_min_km: 6.0, description: 'Easy warm-up jog' },
+        { type: 'tempo' as const, distance_km: 4.5, target_pace_min_km: 4.45, description: 'Tempo effort' },
+        { type: 'cooldown' as const, distance_km: 2, target_pace_min_km: 6.0, description: 'Cool down' },
+      ],
+      notes: 'Keep tempo effort controlled — you should be able to say short sentences.',
+    },
+    estimated_duration_minutes: 45,
+    status: 'scheduled',
+    completed_at: null,
+    sort_order: 1,
+    created_at: makeDemoDate(-7),
+  },
+  {
+    id: 'demo-2',
+    plan_id: 'demo-plan',
+    user_id: 'web-demo',
+    week_number: 1,
+    day_of_week: ((new Date().getDay() || 7) % 7) + 1,
+    scheduled_date: makeDemoDate(1),
+    workout_type: 'strength' as WorkoutType,
+    title: 'Upper Body Strength',
+    description: 'Compound pushing and pulling with core work. Focus on controlled tempo.',
+    workout_data: {
+      type: 'strength' as const,
+      focus: 'Upper Body',
+      exercises: [
+        {
+          name: 'Bench Press',
+          sets: [
+            { set_number: 1, reps: 8, weight_kg: 60, type: 'working' as const, rest_seconds: 90 },
+            { set_number: 2, reps: 8, weight_kg: 60, type: 'working' as const, rest_seconds: 90 },
+            { set_number: 3, reps: 8, weight_kg: 60, type: 'working' as const, rest_seconds: 90 },
+          ],
+        },
+      ],
+      estimated_duration_minutes: 50,
+      notes: 'Superset accessories to save time.',
+    },
+    estimated_duration_minutes: 50,
+    status: 'scheduled',
+    completed_at: null,
+    sort_order: 2,
+    created_at: makeDemoDate(-7),
+  },
+  {
+    id: 'demo-3',
+    plan_id: 'demo-plan',
+    user_id: 'web-demo',
+    week_number: 1,
+    day_of_week: ((new Date().getDay() || 7) + 1) % 7 + 1,
+    scheduled_date: makeDemoDate(2),
+    workout_type: 'easy_run' as WorkoutType,
+    title: 'Easy Recovery Run',
+    description: 'Keep it conversational. This run builds aerobic base without fatigue.',
+    workout_data: {
+      type: 'easy_run' as const,
+      total_distance_km: 6,
+      segments: [
+        { type: 'easy' as const, distance_km: 6, target_pace_min_km: 5.8, description: 'Easy pace' },
+      ],
+      notes: 'Heart rate zone 2. Enjoy the run.',
+    },
+    estimated_duration_minutes: 35,
+    status: 'scheduled',
+    completed_at: null,
+    sort_order: 3,
+    created_at: makeDemoDate(-7),
+  },
+  {
+    id: 'demo-4',
+    plan_id: 'demo-plan',
+    user_id: 'web-demo',
+    week_number: 1,
+    day_of_week: ((new Date().getDay() || 7) + 2) % 7 + 1,
+    scheduled_date: makeDemoDate(3),
+    workout_type: 'interval_run' as WorkoutType,
+    title: 'Speed Intervals',
+    description: '6x800m at 5K pace with 400m recovery jogs between.',
+    workout_data: {
+      type: 'interval_run' as const,
+      total_distance_km: 10,
+      segments: [
+        { type: 'warmup' as const, distance_km: 2, target_pace_min_km: 5.5, description: 'Warm up' },
+        { type: 'interval' as const, distance_km: 0.8, target_pace_min_km: 4.0, description: '800m hard' },
+        { type: 'recovery' as const, distance_km: 0.4, target_pace_min_km: 6.5, description: 'Recovery jog' },
+        { type: 'interval' as const, distance_km: 0.8, target_pace_min_km: 4.0, description: '800m hard' },
+        { type: 'recovery' as const, distance_km: 0.4, target_pace_min_km: 6.5, description: 'Recovery jog' },
+        { type: 'cooldown' as const, distance_km: 2, target_pace_min_km: 6.0, description: 'Cool down' },
+      ],
+      notes: 'Focus on even splits across all intervals.',
+    },
+    estimated_duration_minutes: 55,
+    status: 'scheduled',
+    completed_at: null,
+    sort_order: 4,
+    created_at: makeDemoDate(-7),
+  },
+  {
+    id: 'demo-5',
+    plan_id: 'demo-plan',
+    user_id: 'web-demo',
+    week_number: 1,
+    day_of_week: ((new Date().getDay() || 7) + 3) % 7 + 1,
+    scheduled_date: makeDemoDate(4),
+    workout_type: 'long_run' as WorkoutType,
+    title: 'Long Run',
+    description: 'Weekly long run to build endurance. Negative split the second half.',
+    workout_data: {
+      type: 'long_run' as const,
+      total_distance_km: 16,
+      segments: [
+        { type: 'easy' as const, distance_km: 8, target_pace_min_km: 5.5, description: 'Easy first half' },
+        { type: 'steady' as const, distance_km: 8, target_pace_min_km: 5.0, description: 'Faster second half' },
+      ],
+      notes: 'Take a gel at km 10. Stay hydrated.',
+    },
+    estimated_duration_minutes: 85,
+    status: 'scheduled',
+    completed_at: null,
+    sort_order: 5,
+    created_at: makeDemoDate(-7),
+  },
+];
+
+const DEMO_COMPLETED_COUNT = 3;
+const DEMO_TOTAL_WEEK = 6;
+
+// ─── Motivational Messages ──────────────────────────────────────────────────
+
+const MOTIVATIONAL_MESSAGES = [
+  'Every rep builds the athlete you want to be.',
+  'Consistency beats intensity. Show up today.',
+  'Your future self will thank you for this session.',
+  'Progress is built one workout at a time.',
+  'The only bad workout is the one you skipped.',
+  'Train hard, recover harder.',
+  'Discipline is choosing between what you want now and what you want most.',
 ];
 
 const AI_COACH_MESSAGES = [
-  "Focus on consistency this week. Every session counts toward your goal.",
-  "Recovery is when you get stronger. Rest days are as important as training days.",
-  "You're building a solid foundation. Trust the process.",
-  "Great work staying consistent. Your body is adapting well.",
-  "Remember: quality over quantity. Execute each rep with intention.",
+  'Your training load is well balanced this week. Keep the easy days easy to maximize your hard sessions.',
+  'I noticed your tempo runs are improving. Consider adding 30 seconds to your next threshold block.',
+  'Recovery is where adaptation happens. Make sure you are getting 7-8 hours of sleep tonight.',
+  'Your consistency has been excellent. You are on track for a strong performance on race day.',
+  'Focus on cadence during your easy runs — 170-180 steps per minute builds efficiency over time.',
 ];
 
-export default function TodayScreen() {
-  const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const { plan, todayWorkout, workouts, isLoading } = usePlan();
-  const { startWorkout } = useWorkout();
-
-  const [showFeelingCheck, setShowFeelingCheck] = useState(false);
-  const [selectedFeeling, setSelectedFeeling] = useState<FeelingLevel | null>(null);
-  const [selectedIssues, setSelectedIssues] = useState<SpecificIssue[]>([]);
-  const [adjustmentResult, setAdjustmentResult] = useState<string | null>(null);
-  const [feelingSelected, setFeelingSelected] = useState(false);
-
-  const completedThisWeek = workouts.filter(
-    (w) => w.week_number === (plan?.current_week ?? 1) && w.status === 'completed',
-  ).length;
-  const totalThisWeek = workouts.filter(
-    (w) => w.week_number === (plan?.current_week ?? 1),
-  ).length;
-
-  const greeting = getGreeting();
-  const coachMessage = AI_COACH_MESSAGES[Math.floor(Date.now() / 86400000) % AI_COACH_MESSAGES.length];
-
-  const handleStartWorkout = () => {
-    if (!todayWorkout) return;
-    startWorkout(todayWorkout);
-    if (isRunningWorkout(todayWorkout.workout_data)) {
-      router.push('/workout/run-active');
-    } else {
-      router.push('/workout/active');
-    }
-  };
-
-  const handleFeelingTap = (feeling: typeof FEELING_EMOJIS[number]) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFeelingSelected(true);
-
-    if (feeling.id === 'tired' && todayWorkout) {
-      const result = adjustWorkout(todayWorkout, 'tired', ['previous_hard_session']);
-      if (result.wasAdjusted) {
-        setAdjustmentResult('Got it! Your workout has been adjusted.');
-      }
-    }
-  };
-
-  const workoutColor = todayWorkout
-    ? workoutTypeColors[todayWorkout.workout_type] || colors.primary
-    : colors.primary;
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <Animated.View entering={FadeIn.duration(500)} style={styles.header}>
-          <Typography variant="callout" color={colors.textMuted}>
-            {greeting}
-          </Typography>
-          <Typography variant="largeTitle">
-            {user?.full_name?.split(' ')[0] || 'Athlete'}
-          </Typography>
-          {plan && (
-            <Typography variant="caption1" color={colors.primary} style={{ marginTop: spacing.xs, fontWeight: '600' }}>
-              Week {plan.current_week} of {plan.total_weeks}
-            </Typography>
-          )}
-        </Animated.View>
-
-        {/* Adjustment feedback */}
-        {adjustmentResult && (
-          <Pressable onPress={() => setAdjustmentResult(null)} style={styles.adjustmentCard}>
-            <Typography variant="footnote" color={colors.success} style={{ flex: 1 }}>
-              {adjustmentResult}
-            </Typography>
-            <Typography variant="caption2" color={colors.textMuted}>Dismiss</Typography>
-          </Pressable>
-        )}
-
-        {/* Today's Workout Card */}
-        {todayWorkout ? (
-          <Animated.View entering={FadeInDown.delay(150).duration(500)}>
-            <Pressable
-              onPress={() => router.push(`/workout/${todayWorkout.id}`)}
-              style={[styles.workoutCard, { borderLeftColor: workoutColor }]}
-            >
-              <Badge
-                label={formatWorkoutType(todayWorkout.workout_type)}
-                color={workoutColor}
-                backgroundColor={withOpacity(workoutColor, 0.12)}
-              />
-              <Typography variant="title1" style={{ marginTop: spacing.sm }}>
-                {todayWorkout.title}
-              </Typography>
-              {todayWorkout.description && (
-                <Typography variant="callout" color={colors.textSecondary} numberOfLines={2} style={{ marginTop: spacing.xs }}>
-                  {todayWorkout.description}
-                </Typography>
-              )}
-
-              <View style={styles.workoutMeta}>
-                <MetaItem label="Duration" value={formatWorkoutDuration(todayWorkout.estimated_duration_minutes)} />
-                {isRunningWorkout(todayWorkout.workout_data) && (
-                  <MetaItem
-                    label="Distance"
-                    value={formatDistance((todayWorkout.workout_data as RunningWorkoutData).total_distance_km)}
-                  />
-                )}
-              </View>
-
-              <Button
-                title="Start Workout"
-                onPress={handleStartWorkout}
-                size="lg"
-                fullWidth
-                style={{ marginTop: spacing.lg }}
-              />
-            </Pressable>
-          </Animated.View>
-        ) : (
-          <Animated.View entering={FadeInDown.delay(150).duration(500)}>
-            <View style={styles.restCard}>
-              <Typography variant="title1" align="center" style={{ marginBottom: spacing.sm }}>
-                {'\u{1F34C}'}
-              </Typography>
-              <Typography variant="title3" align="center">
-                Rest Day
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: spacing.sm }}>
-                Recovery is part of the plan.{'\n'}Your body builds strength while you rest.
-              </Typography>
-              {workouts.filter((w) => w.status === 'scheduled').length > 0 && (
-                <View style={styles.nextWorkoutPreview}>
-                  <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '600', marginBottom: spacing.xs }}>
-                    NEXT UP
-                  </Typography>
-                  <Typography variant="callout" color={colors.textSecondary}>
-                    {workouts.filter((w) => w.status === 'scheduled')[0]?.title || 'Upcoming session'}
-                  </Typography>
-                </View>
-              )}
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Weekly Progress */}
-        {plan && (
-          <Animated.View entering={FadeInDown.delay(250).duration(400)}>
-            <View style={styles.weekCard}>
-              <View style={styles.weekHeader}>
-                <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '700', letterSpacing: 1.5 }}>
-                  WEEKLY PROGRESS
-                </Typography>
-                <Typography variant="headline" color={colors.primary}>
-                  {completedThisWeek}/{totalThisWeek}
-                </Typography>
-              </View>
-              <ProgressBar
-                progress={totalThisWeek > 0 ? completedThisWeek / totalThisWeek : 0}
-                height={6}
-                style={{ marginTop: spacing.sm }}
-              />
-            </View>
-          </Animated.View>
-        )}
-
-        {/* AI Coach Message */}
-        <Animated.View entering={FadeInDown.delay(350).duration(400)}>
-          <View style={styles.coachCard}>
-            <View style={styles.coachHeader}>
-              <View style={styles.coachAvatar}>
-                <Typography variant="caption1" style={{ textAlign: 'center' }}>{'\u{1F9E0}'}</Typography>
-              </View>
-              <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '700' }}>AI COACH</Typography>
-            </View>
-            <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.sm }}>
-              {coachMessage}
-            </Typography>
-            <TouchableOpacity
-              style={styles.coachButton}
-              onPress={() => router.push('/coach/chat' as any)}
-              activeOpacity={0.7}
-            >
-              <Typography variant="caption1" color={colors.primary} style={{ fontWeight: '600' }}>
-                Chat with Coach
-              </Typography>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-
-        {/* How are you feeling? */}
-        {!feelingSelected && (
-          <Animated.View entering={FadeInDown.delay(450).duration(400)}>
-            <View style={styles.feelingCard}>
-              <Typography variant="caption1" color={colors.textMuted} style={{ fontWeight: '700', letterSpacing: 1.5, marginBottom: spacing.sm }}>
-                HOW ARE YOU FEELING?
-              </Typography>
-              <View style={styles.feelingRow}>
-                {FEELING_EMOJIS.map((f) => (
-                  <TouchableOpacity
-                    key={f.id}
-                    style={styles.feelingOption}
-                    onPress={() => handleFeelingTap(f)}
-                    activeOpacity={0.7}
-                  >
-                    <Typography variant="title2" align="center">{f.emoji}</Typography>
-                    <Typography variant="caption2" color={colors.textMuted} style={{ marginTop: 2, textAlign: 'center' }}>
-                      {f.label}
-                    </Typography>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Coming Up */}
-        <Animated.View entering={FadeInDown.delay(550).duration(400)} style={styles.section}>
-          <Typography variant="caption1" color={colors.textMuted} style={styles.sectionLabel}>
-            COMING UP
-          </Typography>
-          {workouts
-            .filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id)
-            .slice(0, 3)
-            .map((workout) => (
-              <Pressable
-                key={workout.id}
-                style={styles.upcomingCard}
-                onPress={() => router.push(`/workout/${workout.id}`)}
-              >
-                <View style={[styles.upcomingDot, { backgroundColor: workoutTypeColors[workout.workout_type] || colors.primary }]} />
-                <View style={styles.upcomingText}>
-                  <Typography variant="callout" style={{ fontWeight: '500' }}>{workout.title}</Typography>
-                  <Typography variant="caption1" color={colors.textMuted}>
-                    {formatDate(workout.scheduled_date)} · {formatWorkoutDuration(workout.estimated_duration_minutes)}
-                  </Typography>
-                </View>
-              </Pressable>
-            ))}
-          {workouts.filter((w) => w.status === 'scheduled' && w.id !== todayWorkout?.id).length === 0 && (
-            <Typography variant="callout" color={colors.textMuted} style={{ paddingVertical: spacing.md }}>
-              No upcoming workouts
-            </Typography>
-          )}
-        </Animated.View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function MetaItem({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metaItem}>
-      <Typography variant="caption1" color={colors.textMuted} style={{ letterSpacing: 0.5 }}>{label}</Typography>
-      <Typography variant="headline" style={{ marginTop: 2 }}>{value}</Typography>
-    </View>
-  );
-}
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -302,6 +203,411 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+function getMotivationalMessage(): string {
+  const dayIndex = Math.floor(Date.now() / 86400000) % MOTIVATIONAL_MESSAGES.length;
+  return MOTIVATIONAL_MESSAGES[dayIndex];
+}
+
+function getCoachMessage(): string {
+  const dayIndex = Math.floor(Date.now() / 86400000) % AI_COACH_MESSAGES.length;
+  return AI_COACH_MESSAGES[dayIndex];
+}
+
+function formatWorkoutType(type: string): string {
+  const labels: Record<string, string> = {
+    easy_run: 'Easy Run',
+    tempo_run: 'Tempo Run',
+    interval_run: 'Intervals',
+    long_run: 'Long Run',
+    recovery_run: 'Recovery',
+    fartlek: 'Fartlek',
+    hill_run: 'Hill Session',
+    race_pace: 'Race Pace',
+    strength: 'Strength',
+    hyrox: 'HYROX',
+    mobility: 'Mobility',
+    swim: 'Swim',
+    bike: 'Bike',
+    rest: 'Rest Day',
+  };
+  return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function formatScheduledDate(dateStr: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(dateStr + 'T00:00:00');
+  const diff = Math.round((date.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff > 1 && diff <= 6) return format(date, 'EEEE');
+  return format(date, 'EEE, d MMM');
+}
+
+function getDistanceFromWorkout(workout: Workout): string | null {
+  const data = workout.workout_data as any;
+  if (data?.total_distance_km) {
+    const km = data.total_distance_km;
+    return km >= 10 ? `${km.toFixed(1)} km` : `${km.toFixed(1)} km`;
+  }
+  return null;
+}
+
+// ─── Day Dot Status ─────────────────────────────────────────────────────────
+
+type DayStatus = 'completed' | 'today' | 'scheduled' | 'rest';
+
+function getWeekDayStatuses(
+  workouts: Workout[],
+  currentWeek: number,
+): DayStatus[] {
+  const statuses: DayStatus[] = [];
+  const todayDow = new Date().getDay() || 7; // 1=Mon..7=Sun
+
+  for (let day = 1; day <= 7; day++) {
+    const dayWorkouts = workouts.filter(
+      (w) => w.week_number === currentWeek && w.day_of_week === day,
+    );
+    if (dayWorkouts.length === 0) {
+      statuses.push(day === todayDow ? 'today' : 'rest');
+    } else if (dayWorkouts.some((w) => w.status === 'completed')) {
+      statuses.push('completed');
+    } else if (day === todayDow) {
+      statuses.push('today');
+    } else {
+      statuses.push('scheduled');
+    }
+  }
+  return statuses;
+}
+
+// ─── Main Screen ────────────────────────────────────────────────────────────
+
+export default function TodayScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const {
+    plan: realPlan,
+    todayWorkout: realTodayWorkout,
+    workouts: realWorkouts,
+  } = usePlan();
+
+  // Use demo data when on web or when real data is empty
+  const isDemo = Platform.OS === 'web' || (!realTodayWorkout && realWorkouts.length === 0);
+
+  const todayWorkout = isDemo ? DEMO_WORKOUTS[0] : realTodayWorkout;
+  const workouts = isDemo ? DEMO_WORKOUTS : realWorkouts;
+  const currentWeek = isDemo ? 1 : (realPlan?.current_week ?? 1);
+  const totalWeeks = isDemo ? 12 : (realPlan?.total_weeks ?? 12);
+
+  const completedThisWeek = useMemo(() => {
+    if (isDemo) return DEMO_COMPLETED_COUNT;
+    return workouts.filter(
+      (w) => w.week_number === currentWeek && w.status === 'completed',
+    ).length;
+  }, [workouts, currentWeek, isDemo]);
+
+  const totalThisWeek = useMemo(() => {
+    if (isDemo) return DEMO_TOTAL_WEEK;
+    return workouts.filter((w) => w.week_number === currentWeek).length;
+  }, [workouts, currentWeek, isDemo]);
+
+  const upcomingWorkouts = useMemo(() => {
+    return workouts
+      .filter(
+        (w) =>
+          w.status === 'scheduled' &&
+          w.id !== todayWorkout?.id &&
+          w.workout_type !== 'rest',
+      )
+      .slice(0, 3);
+  }, [workouts, todayWorkout]);
+
+  const weekStatuses = useMemo(
+    () => getWeekDayStatuses(workouts, currentWeek),
+    [workouts, currentWeek],
+  );
+
+  const greeting = getGreeting();
+  const firstName =
+    (user as any)?.full_name?.split(' ')[0] || 'Athlete';
+  const motivationalMsg = getMotivationalMessage();
+  const coachMessage = getCoachMessage();
+
+  const workoutColor = todayWorkout
+    ? workoutTypeColors[todayWorkout.workout_type] || colors.primary
+    : colors.primary;
+
+  const handleStartWorkout = () => {
+    if (!todayWorkout) return;
+    router.push(`/workout/${todayWorkout.id}` as any);
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Greeting Section ─────────────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.delay(0).duration(300)}
+          style={styles.greetingSection}
+        >
+          <Text style={styles.greetingText}>{greeting}</Text>
+          <Text style={styles.nameText}>{firstName}</Text>
+          <Text style={styles.motivationalText}>{motivationalMsg}</Text>
+          {(realPlan || isDemo) && (
+            <Text style={styles.weekIndicator}>
+              Week {currentWeek} of {totalWeeks}
+            </Text>
+          )}
+        </Animated.View>
+
+        {/* ── Today's Workout Card ────────────────────────── */}
+        {todayWorkout && todayWorkout.workout_type !== 'rest' ? (
+          <Animated.View entering={FadeInDown.delay(100).duration(300)}>
+            <Pressable
+              onPress={handleStartWorkout}
+              style={({ pressed }) => [
+                styles.todayCard,
+                pressed && styles.cardPressed,
+              ]}
+            >
+              {/* Accent bar */}
+              <View
+                style={[
+                  styles.accentBar,
+                  { backgroundColor: workoutColor },
+                ]}
+              />
+
+              <View style={styles.todayCardContent}>
+                {/* Workout type badge */}
+                <View
+                  style={[
+                    styles.typeBadge,
+                    { backgroundColor: withOpacity(workoutColor, 0.12) },
+                  ]}
+                >
+                  <Text
+                    style={[styles.typeBadgeText, { color: workoutColor }]}
+                  >
+                    {formatWorkoutType(todayWorkout.workout_type)}
+                  </Text>
+                </View>
+
+                {/* Title */}
+                <Text style={styles.workoutTitle}>
+                  {todayWorkout.title}
+                </Text>
+
+                {/* Description */}
+                {todayWorkout.description && (
+                  <Text style={styles.workoutDescription} numberOfLines={2}>
+                    {todayWorkout.description}
+                  </Text>
+                )}
+
+                {/* Meta row */}
+                <View style={styles.metaRow}>
+                  <View style={styles.metaItem}>
+                    <Text style={styles.metaLabel}>Duration</Text>
+                    <Text style={styles.metaValue}>
+                      {formatDuration(todayWorkout.estimated_duration_minutes)}
+                    </Text>
+                  </View>
+                  {getDistanceFromWorkout(todayWorkout) && (
+                    <View style={styles.metaItem}>
+                      <Text style={styles.metaLabel}>Distance</Text>
+                      <Text style={styles.metaValue}>
+                        {getDistanceFromWorkout(todayWorkout)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Start Workout Button */}
+                <Pressable
+                  onPress={handleStartWorkout}
+                  style={({ pressed }) => [
+                    styles.startButton,
+                    pressed && styles.startButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.startButtonText}>Start Workout</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeInDown.delay(100).duration(300)}>
+            <View style={styles.restCard}>
+              <Text style={styles.restIcon}>{'\uD83C\uDF3F'}</Text>
+              <Text style={styles.restTitle}>Rest Day</Text>
+              <Text style={styles.restMessage}>
+                Your body is rebuilding. Recovery is when the magic happens
+                — muscles repair, energy restores, and you come back
+                stronger.
+              </Text>
+              {upcomingWorkouts.length > 0 && (
+                <View style={styles.nextWorkoutPreview}>
+                  <Text style={styles.nextLabel}>NEXT UP</Text>
+                  <View style={styles.nextWorkoutRow}>
+                    <View
+                      style={[
+                        styles.nextDot,
+                        {
+                          backgroundColor:
+                            workoutTypeColors[
+                              upcomingWorkouts[0].workout_type
+                            ] || colors.primary,
+                        },
+                      ]}
+                    />
+                    <Text style={styles.nextTitle}>
+                      {upcomingWorkouts[0].title}
+                    </Text>
+                    <Text style={styles.nextDate}>
+                      {formatScheduledDate(
+                        upcomingWorkouts[0].scheduled_date,
+                      )}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* ── Weekly Progress ─────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(200).duration(300)}>
+          <View style={styles.weekCard}>
+            <View style={styles.weekHeader}>
+              <Text style={styles.sectionTitle}>This Week</Text>
+              <Text style={styles.weekCount}>
+                {completedThisWeek} of {totalThisWeek} completed
+              </Text>
+            </View>
+            <View style={styles.dotsRow}>
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
+                const status = weekStatuses[i];
+                return (
+                  <View key={i} style={styles.dotColumn}>
+                    <View
+                      style={[
+                        styles.dayDot,
+                        status === 'completed' && styles.dayDotCompleted,
+                        status === 'today' && styles.dayDotToday,
+                        status === 'scheduled' && styles.dayDotScheduled,
+                        status === 'rest' && styles.dayDotRest,
+                      ]}
+                    >
+                      {status === 'completed' && (
+                        <Text style={styles.checkText}>{'\u2713'}</Text>
+                      )}
+                    </View>
+                    <Text
+                      style={[
+                        styles.dayLabel,
+                        status === 'today' && {
+                          color: colors.primary,
+                          fontWeight: '700',
+                        },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ── AI Coach Card ───────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(300).duration(300)}>
+          <View style={styles.coachCard}>
+            <View style={styles.coachHeader}>
+              <View style={styles.coachAvatar}>
+                <Text style={styles.coachAvatarText}>A</Text>
+              </View>
+              <View style={styles.coachNameBlock}>
+                <Text style={styles.coachName}>Ace</Text>
+                <Text style={styles.coachSubtitle}>AI Coach</Text>
+              </View>
+            </View>
+            <Text style={styles.coachMessage}>{coachMessage}</Text>
+            <Pressable
+              onPress={() => router.push('/coach/chat' as any)}
+              style={({ pressed }) => [
+                styles.coachButton,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.coachButtonText}>Chat with Ace</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+
+        {/* ── Coming Up ───────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(400).duration(300)}>
+          <View style={styles.upcomingSection}>
+            <Text style={styles.sectionTitle}>Coming Up</Text>
+            {upcomingWorkouts.length > 0 ? (
+              upcomingWorkouts.map((workout) => {
+                const wColor =
+                  workoutTypeColors[workout.workout_type] || colors.primary;
+                return (
+                  <Pressable
+                    key={workout.id}
+                    onPress={() =>
+                      router.push(`/workout/${workout.id}` as any)
+                    }
+                    style={({ pressed }) => [
+                      styles.upcomingCard,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.upcomingDot,
+                        { backgroundColor: wColor },
+                      ]}
+                    />
+                    <View style={styles.upcomingInfo}>
+                      <Text style={styles.upcomingTitle}>
+                        {workout.title}
+                      </Text>
+                      <Text style={styles.upcomingMeta}>
+                        {formatScheduledDate(workout.scheduled_date)}
+                        {'  \u00B7  '}
+                        {formatDuration(workout.estimated_duration_minutes)}
+                      </Text>
+                    </View>
+                    <Text style={styles.upcomingChevron}>{'\u203A'}</Text>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <Text style={styles.emptyText}>No upcoming workouts</Text>
+            )}
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -309,34 +615,80 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.massive,
+    paddingBottom: 120,
   },
-  header: {
+
+  // Greeting
+  greetingSection: {
     paddingTop: spacing.lg,
     marginBottom: spacing.lg,
   },
-  adjustmentCard: {
-    marginBottom: spacing.md,
-    backgroundColor: withOpacity(colors.success, 0.08),
-    borderWidth: 1,
-    borderColor: withOpacity(colors.success, 0.15),
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.md,
+  greetingText: {
+    ...typography.callout,
+    color: colors.textTertiary,
   },
-  workoutCard: {
+  nameText: {
+    ...typography.largeTitle,
+    color: colors.textPrimary,
+    marginTop: spacing.xs,
+  },
+  motivationalText: {
+    ...typography.subheadline,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  weekIndicator: {
+    ...typography.caption1,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+  },
+
+  // Today's Workout Card
+  todayCard: {
     backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderLeftWidth: 4,
+    flexDirection: 'row',
+    overflow: 'hidden',
     marginBottom: spacing.md,
+    ...shadows.md,
   },
-  workoutMeta: {
+  cardPressed: {
+    opacity: 0.92,
+  },
+  accentBar: {
+    width: 4,
+  },
+  todayCardContent: {
+    flex: 1,
+    padding: spacing.lg,
+  },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  typeBadgeText: {
+    ...typography.caption2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  workoutTitle: {
+    ...typography.title1,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
+  },
+  workoutDescription: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    lineHeight: 22,
+  },
+  metaRow: {
     flexDirection: 'row',
     marginTop: spacing.lg,
     gap: spacing.xl,
@@ -344,104 +696,266 @@ const styles = StyleSheet.create({
   metaItem: {
     gap: 2,
   },
+  metaLabel: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  metaValue: {
+    ...typography.headline,
+    color: colors.textPrimary,
+    marginTop: 2,
+  },
+  startButton: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.glow(colors.primary),
+  },
+  startButtonPressed: {
+    backgroundColor: colors.primaryDark,
+  },
+  startButtonText: {
+    ...typography.headline,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Rest Day Card
   restCard: {
     backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.lg,
     padding: spacing.xl,
-    marginBottom: spacing.md,
     alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  restIcon: {
+    fontSize: 40,
+    marginBottom: spacing.sm,
+  },
+  restTitle: {
+    ...typography.title2,
+    color: colors.textPrimary,
+  },
+  restMessage: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+    lineHeight: 22,
   },
   nextWorkoutPreview: {
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     width: '100%',
   },
+  nextLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: spacing.sm,
+  },
+  nextWorkoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nextDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.sm,
+  },
+  nextTitle: {
+    ...typography.callout,
+    color: colors.textPrimary,
+    fontWeight: '500',
+    flex: 1,
+  },
+  nextDate: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+  },
+
+  // Weekly Progress
   weekCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
   },
   weekHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.md,
   },
+  sectionTitle: {
+    ...typography.headline,
+    color: colors.textPrimary,
+  },
+  weekCount: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+  },
+  dotColumn: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  dayDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayDotCompleted: {
+    backgroundColor: colors.success,
+  },
+  dayDotToday: {
+    backgroundColor: withOpacity(colors.primary, 0.2),
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  dayDotScheduled: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  dayDotRest: {
+    backgroundColor: withOpacity(colors.textMuted, 0.1),
+  },
+  checkText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dayLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    fontWeight: '500',
+  },
+
+  // AI Coach Card
   coachCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
   },
   coachHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-  },
-  coachAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: withOpacity(colors.primary, 0.15),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coachButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: withOpacity(colors.primary, 0.1),
-    borderRadius: borderRadius.sm,
-    alignSelf: 'flex-start',
-  },
-  feelingCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
     marginBottom: spacing.md,
   },
-  feelingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  feelingOption: {
+  coachAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: withOpacity(colors.primary, 0.15),
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
   },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  sectionLabel: {
+  coachAvatarText: {
+    color: colors.primary,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 1.5,
+  },
+  coachNameBlock: {
+    flex: 1,
+  },
+  coachName: {
+    ...typography.headline,
+    color: colors.textPrimary,
+  },
+  coachSubtitle: {
+    ...typography.caption2,
+    color: colors.primary,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    marginBottom: spacing.sm,
+    letterSpacing: 0.5,
+  },
+  coachMessage: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  coachButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: withOpacity(colors.primary, 0.1),
+    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.2),
+  },
+  coachButtonText: {
+    ...typography.footnote,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+
+  // Coming Up
+  upcomingSection: {
+    marginBottom: spacing.lg,
   },
   upcomingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginTop: spacing.sm,
   },
   upcomingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: spacing.md,
   },
-  upcomingText: {
+  upcomingInfo: {
     flex: 1,
+  },
+  upcomingTitle: {
+    ...typography.callout,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  upcomingMeta: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    marginTop: 2,
+  },
+  upcomingChevron: {
+    fontSize: 22,
+    color: colors.textTertiary,
+    marginLeft: spacing.sm,
+  },
+  emptyText: {
+    ...typography.callout,
+    color: colors.textTertiary,
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
   },
 });

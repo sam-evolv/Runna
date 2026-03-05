@@ -180,8 +180,8 @@ const styles = StyleSheet.create({
   formCard: {
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
     ...glass.card,
+    borderRadius: borderRadius.xl,
     marginBottom: spacing.lg,
   },
   input: {

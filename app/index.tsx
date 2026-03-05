@@ -20,7 +20,7 @@ export default function Index() {
   }
 
   if (!isOnboarded) {
-    return <Redirect href="/(onboarding)/goal-type" />;
+    return <Redirect href="/(onboarding)/welcome" />;
   }
 
   return <Redirect href="/(tabs)/today" />;

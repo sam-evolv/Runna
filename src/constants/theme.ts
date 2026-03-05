@@ -4,15 +4,16 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Premium Dark Palette ────────────────────────────────────────────────────
 export const colors = {
-  // Primary — purple
-  primary: '#6C5CE7',
-  primaryDark: '#5A4BD6',
-  primaryLight: '#A29BFE',
-  primaryMuted: 'rgba(108,92,231,0.12)',
+  // Primary — electric purple
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
+  primaryLight: '#A78BFA',
+  primaryMuted: 'rgba(124,58,237,0.12)',
+  primaryGlow: 'rgba(124,58,237,0.25)',
 
   // Secondary — teal
-  secondary: '#00CEC9',
-  secondaryMuted: 'rgba(0,206,201,0.12)',
+  secondary: '#06B6D4',
+  secondaryMuted: 'rgba(6,182,212,0.12)',
 
   // Accent — pink
   accent: '#FD79A8',
@@ -20,42 +21,45 @@ export const colors = {
 
   // Background — premium dark
   background: '#0A0A0F',
-  surface: '#13131A',
-  surfaceLight: '#1C1C26',
-  surfaceElevated: '#1C1C26',
+  surface: '#12121A',
+  card: '#1A1A27',
+  surfaceLight: '#1A1A27',
+  surfaceElevated: '#22222F',
 
   // Text
   textPrimary: '#FFFFFF',
-  textSecondary: '#A0A0B8',
-  textTertiary: '#5A5A72',
-  textMuted: '#5A5A72',
+  textSecondary: '#9CA3AF',
+  textTertiary: '#6B7280',
+  textMuted: '#4B5563',
   textInverse: '#0A0A0F',
 
   // Status
-  success: '#00B894',
-  warning: '#FDCB6E',
-  error: '#E17055',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
 
-  // Workout type colours
-  run: '#0984E3',
-  strength: '#E17055',
-  hyrox: '#6C5CE7',
-  triathlon: '#00CEC9',
-  recovery: '#00B894',
+  // Workout type accent colours
+  running: '#F97316',
+  strength: '#EF4444',
+  hyrox: '#10B981',
+  triathlon: '#3B82F6',
+  general: '#8B5CF6',
 
-  // Workout sub-types (backward compat)
-  easyRun: '#0984E3',
-  tempoRun: '#FDCB6E',
-  intervalRun: '#E17055',
-  longRun: '#0984E3',
-  recoveryRun: '#00B894',
-  mobility: '#00CEC9',
-  rest: 'rgba(255,255,255,0.2)',
-  coral: '#E17055',
+  // Backward compat aliases
+  run: '#F97316',
+  recovery: '#10B981',
+  easyRun: '#F97316',
+  tempoRun: '#F97316',
+  intervalRun: '#F97316',
+  longRun: '#F97316',
+  recoveryRun: '#10B981',
+  mobility: '#06B6D4',
+  rest: 'rgba(255,255,255,0.15)',
+  coral: '#EF4444',
 
   // Utility
-  border: '#2A2A38',
-  borderLight: 'rgba(255,255,255,0.1)',
+  border: '#2A2A3D',
+  borderLight: 'rgba(255,255,255,0.08)',
   overlay: 'rgba(0,0,0,0.75)',
   transparent: 'transparent',
   white: '#FFFFFF',
@@ -75,6 +79,16 @@ export function withOpacity(hex: string, opacity: number): string {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${opacity})`;
 }
+
+// Sport accent colour helper
+export const sportColors: Record<string, string> = {
+  running: colors.running,
+  strength: colors.strength,
+  hyrox: colors.hyrox,
+  triathlon: colors.triathlon,
+  general_fitness: colors.general,
+  endurance: colors.triathlon,
+};
 
 // ─── Spacing ─────────────────────────────────────────────────────────────────
 export const spacing = {
@@ -101,6 +115,12 @@ export const borderRadius = {
 
 // ─── Typography Scale ────────────────────────────────────────────────────────
 export const typography = {
+  hero: {
+    fontSize: 40,
+    fontWeight: '700' as const,
+    lineHeight: 46,
+    letterSpacing: -1.0,
+  },
   largeTitle: {
     fontSize: 34,
     fontWeight: '700' as const,
@@ -216,26 +236,29 @@ export const shadows = {
 // ─── Glass Card Styles ───────────────────────────────────────────────────────
 export const glass = {
   card: {
-    backgroundColor: '#13131A' as string,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#2A2A38' as string,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
   },
   cardElevated: {
-    backgroundColor: '#1C1C26' as string,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: '#2A2A38' as string,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
   },
   input: {
-    backgroundColor: '#13131A' as string,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#2A2A38' as string,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
   },
 } as const;
 
 // ─── Animations ──────────────────────────────────────────────────────────────
 export const animation = {
   fast: 150,
-  normal: 250,
+  normal: 300,
   slow: 400,
   entrance: 500,
 
@@ -255,12 +278,13 @@ export const animation = {
 
 // ─── Gradients ───────────────────────────────────────────────────────────────
 export const gradients = {
-  primary: ['#6C5CE7', '#A29BFE'] as const,
-  success: ['#00B894', '#55EFC4'] as const,
-  warning: ['#FDCB6E', '#F9CA24'] as const,
-  error: ['#E17055', '#D63031'] as const,
-  purple: ['#6C5CE7', '#A29BFE'] as const,
-  surface: ['#0A0A0F', '#13131A'] as const,
+  primary: ['#7C3AED', '#06B6D4'] as const,
+  cta: ['#7C3AED', '#06B6D4'] as const,
+  success: ['#10B981', '#34D399'] as const,
+  warning: ['#F59E0B', '#FBBF24'] as const,
+  error: ['#EF4444', '#F87171'] as const,
+  purple: ['#7C3AED', '#A78BFA'] as const,
+  surface: ['#0A0A0F', '#12121A'] as const,
 } as const;
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
@@ -275,19 +299,19 @@ export const layout = {
 
 // ─── Workout Type → Color ────────────────────────────────────────────────────
 export const workoutTypeColors: Record<string, string> = {
-  easy_run: colors.run,
-  tempo_run: colors.tempoRun,
-  interval_run: colors.intervalRun,
-  long_run: colors.run,
+  easy_run: colors.running,
+  tempo_run: colors.running,
+  interval_run: colors.running,
+  long_run: colors.running,
   recovery_run: colors.recovery,
-  fartlek: colors.warning,
-  hill_run: colors.coral,
-  race_pace: colors.error,
+  fartlek: colors.running,
+  hill_run: colors.running,
+  race_pace: colors.running,
   strength: colors.strength,
-  mobility: colors.triathlon,
+  mobility: colors.secondary,
   swim: colors.triathlon,
-  bike: '#FDCB6E',
+  bike: colors.triathlon,
   rest: colors.rest,
   hyrox: colors.hyrox,
-  run: colors.run,
+  run: colors.running,
 };

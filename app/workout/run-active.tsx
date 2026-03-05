@@ -1,567 +1,860 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Alert, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   FadeIn,
   FadeInDown,
+  FadeInUp,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
+  withRepeat,
+  withSequence,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Typography, Mono } from '@/components/ui/Typography';
-import { Badge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import { PaceZoneIndicator } from '@/components/workout/PaceZoneIndicator';
-import { useWorkout } from '@/hooks/useWorkout';
-import { useLocation } from '@/hooks/useLocation';
-import { audioCoaching } from '@/services/audioCoaching';
-import { getZoneForHR, type ZoneConfig } from '@/services/heartRateZones';
-import { colors, spacing, borderRadius, glass, animation, shadows, withOpacity } from '@/constants/theme';
-import { formatPace, formatDuration } from '@/utils/paceCalculator';
-import { formatDistance } from '@/utils/formatters';
-import type { RunningWorkoutData } from '@/types/workout';
+import {
+  colors,
+  spacing,
+  borderRadius,
+  typography,
+  shadows,
+  withOpacity,
+} from '@/constants/theme';
+import { useWorkoutStore } from '@/stores/workoutStore';
+import type { RunningWorkoutData, RunSegment } from '@/types/workout';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// ─── Types ──────────────────────────────────────────────────────────────────
 
-// ─── Circular Control Button ─────────────────────────────────────────────────
-function ControlButton({
-  onPress,
-  size,
-  backgroundColor,
-  borderColor,
-  label,
-  labelColor,
-  glowColor,
-}: {
-  onPress: () => void;
-  size: number;
-  backgroundColor: string;
-  borderColor?: string;
-  label: string;
-  labelColor: string;
-  glowColor?: string;
-}) {
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.9, animation.spring.snappy);
-  }, []);
-
-  const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, animation.spring.snappy);
-  }, []);
-
-  const handlePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onPress();
-  }, [onPress]);
-
-  return (
-    <AnimatedPressable
-      onPress={handlePress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderWidth: borderColor ? 1.5 : 0,
-          borderColor: borderColor || 'transparent',
-        },
-        glowColor ? shadows.glow(glowColor) : undefined,
-        animatedStyle,
-      ]}
-    >
-      <Typography
-        variant="headline"
-        color={labelColor}
-        align="center"
-        style={{ fontWeight: '600', letterSpacing: 0.3 }}
-      >
-        {label}
-      </Typography>
-    </AnimatedPressable>
-  );
+interface SplitEntry {
+  km: number;
+  paceMinKm: number;
+  elapsedSeconds: number;
 }
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const HR_ZONES = [
+  { zone: 1, label: 'Recovery', color: '#6B7280', minPct: 0.5, maxPct: 0.6 },
+  { zone: 2, label: 'Easy', color: '#3B82F6', minPct: 0.6, maxPct: 0.7 },
+  { zone: 3, label: 'Aerobic', color: '#10B981', minPct: 0.7, maxPct: 0.8 },
+  { zone: 4, label: 'Threshold', color: '#F97316', minPct: 0.8, maxPct: 0.9 },
+  { zone: 5, label: 'Max', color: '#EF4444', minPct: 0.9, maxPct: 1.0 },
+] as const;
+
+// ─── Mock running state for standalone demo ─────────────────────────────────
+
+const MOCK_RUN_DATA: RunningWorkoutData = {
+  type: 'interval_run',
+  total_distance_km: 8.4,
+  segments: [
+    { type: 'warmup', distance_km: 1.6, target_pace_min_km: 6.0, description: 'Easy jog to warm up' },
+    { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast' },
+    { type: 'recovery', distance_km: 0.4, target_pace_min_km: 6.3, description: 'Slow jog recovery' },
+    { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast' },
+    { type: 'recovery', distance_km: 0.4, target_pace_min_km: 6.3, description: 'Slow jog recovery' },
+    { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast' },
+    { type: 'cooldown', distance_km: 2.0, target_pace_min_km: 6.2, description: 'Easy cooldown' },
+  ],
+  notes: 'Focus on form during intervals.',
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatPace(pace: number): string {
+  if (!pace || pace <= 0 || !isFinite(pace)) return '--:--';
+  const mins = Math.floor(pace);
+  const secs = Math.round((pace - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function segmentColor(type: RunSegment['type']): string {
+  switch (type) {
+    case 'warmup':
+      return '#F59E0B';
+    case 'interval':
+      return colors.running;
+    case 'tempo':
+      return '#EF4444';
+    case 'recovery':
+    case 'easy':
+      return colors.success;
+    case 'cooldown':
+      return colors.secondary;
+    case 'steady':
+      return colors.primary;
+    default:
+      return colors.textSecondary;
+  }
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function RunActiveScreen() {
   const router = useRouter();
-  const {
-    activeWorkout,
-    activeRun,
-    updateRunProgress,
-    completeRunSegment,
-    finishRun,
-    cancelWorkout,
-  } = useWorkout();
-  const { startTracking, stopTracking, totalDistance, currentLocation, isTracking } = useLocation();
 
+  // Store
+  const activeWorkout = useWorkoutStore((s) => s.activeWorkout);
+  const activeRun = useWorkoutStore((s) => s.activeRun);
+  const updateRunProgress = useWorkoutStore((s) => s.updateRunProgress);
+  const completeRunSegment = useWorkoutStore((s) => s.completeRunSegment);
+  const finishRun = useWorkoutStore((s) => s.finishRun);
+  const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
+
+  // State
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [audioCuesEnabled, setAudioCuesEnabled] = useState(true);
-  const [currentHR, setCurrentHR] = useState<number | null>(null);
-  const [hrZoneConfig, setHRZoneConfig] = useState<ZoneConfig | null>(null);
+  const [simulatedDistance, setSimulatedDistance] = useState(0);
+  const [splits, setSplits] = useState<SplitEntry[]>([]);
+  const [coachCue, setCoachCue] = useState<string | null>(null);
+  const [simulatedHRZone, setSimulatedHRZone] = useState(2);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevSegmentRef = useRef(0);
+  const coachCueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSplitKm = useRef(0);
 
-  const runData = activeWorkout?.workout_data as RunningWorkoutData | undefined;
+  // Resolve run data (from store or fallback mock)
+  const runData: RunningWorkoutData =
+    (activeWorkout?.workout_data as RunningWorkoutData | undefined) ?? MOCK_RUN_DATA;
+
   const currentSegmentIndex = activeRun?.currentSegmentIndex ?? 0;
-  const currentSegment = runData?.segments[currentSegmentIndex];
-  const totalSegments = runData?.segments.length ?? 0;
+  const currentSegment = runData.segments[currentSegmentIndex];
+  const totalSegments = runData.segments.length;
 
-  // Initialize audio coaching
-  useEffect(() => {
-    audioCoaching.initialize({ enabled: audioCuesEnabled });
-    return () => {
-      audioCoaching.reset();
-    };
-  }, []);
+  // Animated values
+  const pulseOpacity = useSharedValue(1);
 
   useEffect(() => {
-    audioCoaching.updateConfig({ enabled: audioCuesEnabled });
-  }, [audioCuesEnabled]);
-
-  useEffect(() => {
-    startTracking();
-    startTimer();
-    return () => {
-      stopTracking();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  // Announce segment transitions
-  useEffect(() => {
-    if (currentSegment && currentSegmentIndex !== prevSegmentRef.current) {
-      audioCoaching.announceSegmentStart(currentSegment, currentSegmentIndex, totalSegments);
-      prevSegmentRef.current = currentSegmentIndex;
-    }
-  }, [currentSegmentIndex, currentSegment, totalSegments]);
-
-  // Announce first segment on start
-  useEffect(() => {
-    if (currentSegment && prevSegmentRef.current === 0 && elapsedSeconds === 1) {
-      audioCoaching.announceSegmentStart(currentSegment, 0, totalSegments);
-    }
-  }, [elapsedSeconds, currentSegment, totalSegments]);
-
-  useEffect(() => {
-    if (totalDistance > 0) {
-      updateRunProgress({
-        distanceKm: totalDistance,
-        currentPace: elapsedSeconds > 0 ? (elapsedSeconds / 60) / totalDistance : 0,
-      });
-    }
-  }, [totalDistance]);
-
-  // Audio pace & distance checks every second
-  useEffect(() => {
-    if (currentSegment && totalDistance > 0 && !isPaused) {
-      const currentPace = elapsedSeconds > 0 ? (elapsedSeconds / 60) / totalDistance : 0;
-      audioCoaching.checkPace(currentPace, currentSegment.target_pace_min_km, elapsedSeconds);
-      audioCoaching.checkDistance(totalDistance, runData?.total_distance_km ?? 0);
-    }
-  }, [elapsedSeconds]);
-
-  const startTimer = () => {
-    timerRef.current = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-  };
-
-  const togglePause = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    if (isPaused) {
-      startTimer();
-      setIsPaused(false);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setIsPaused(true);
-    }
-  };
-
-  const handleFinish = () => {
-    Alert.alert('Finish Run', 'Are you sure you want to finish this run?', [
-      { text: 'Continue Running', style: 'cancel' },
-      {
-        text: 'Finish',
-        onPress: async () => {
-          stopTracking();
-          if (timerRef.current) clearInterval(timerRef.current);
-          audioCoaching.announceWorkoutComplete(elapsedSeconds, totalDistance);
-          updateRunProgress({ elapsedSeconds, isRunning: false });
-          await finishRun();
-          router.replace('/(tabs)/today');
-        },
-      },
-    ]);
-  };
-
-  const handleCancel = () => {
-    Alert.alert('Cancel Run', 'Your progress will be lost.', [
-      { text: 'Keep Running', style: 'cancel' },
-      {
-        text: 'Cancel',
-        style: 'destructive',
-        onPress: () => {
-          stopTracking();
-          if (timerRef.current) clearInterval(timerRef.current);
-          cancelWorkout();
-          router.back();
-        },
-      },
-    ]);
-  };
-
-  if (!activeWorkout || !runData) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyState}>
-          <Typography variant="body" color={colors.textSecondary} align="center">
-            No active workout
-          </Typography>
-        </View>
-      </SafeAreaView>
+    pulseOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.4, { duration: 1000 }),
+        withTiming(1, { duration: 1000 })
+      ),
+      -1,
+      true
     );
-  }
+  }, []);
 
-  const currentPace = totalDistance > 0 ? (elapsedSeconds / 60) / totalDistance : 0;
-  const totalProgress = runData.total_distance_km > 0 ? totalDistance / runData.total_distance_km : 0;
-  const currentZone = currentHR && hrZoneConfig ? getZoneForHR(currentHR, hrZoneConfig) : null;
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+  }));
+
+  // Timer
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      if (!isPaused) {
+        setElapsedSeconds((prev) => prev + 1);
+      }
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPaused]);
+
+  // Simulate distance for demo mode (when no real GPS)
+  useEffect(() => {
+    if (isPaused) return;
+    if (!currentSegment) return;
+
+    // Simulate ~1km per target_pace_min_km minutes
+    const paceMinPerKm = currentSegment.target_pace_min_km;
+    const kmPerSecond = 1 / (paceMinPerKm * 60);
+    setSimulatedDistance((prev) => {
+      const next = prev + kmPerSecond;
+      return Math.round(next * 1000) / 1000;
+    });
+  }, [elapsedSeconds, isPaused, currentSegment]);
+
+  // Update store with simulated distance
+  useEffect(() => {
+    const dist = activeRun?.distanceKm ?? simulatedDistance;
+    const pace =
+      simulatedDistance > 0 ? (elapsedSeconds / 60) / simulatedDistance : 0;
+
+    updateRunProgress({
+      elapsedSeconds,
+      distanceKm: simulatedDistance,
+      currentPace: pace,
+    });
+
+    // Track splits
+    const currentKm = Math.floor(simulatedDistance);
+    if (currentKm > lastSplitKm.current && currentKm > 0) {
+      const splitPace = elapsedSeconds > 0 ? (elapsedSeconds / 60) / simulatedDistance : 0;
+      setSplits((prev) => [
+        ...prev,
+        { km: currentKm, paceMinKm: splitPace, elapsedSeconds },
+      ]);
+      lastSplitKm.current = currentKm;
+    }
+  }, [simulatedDistance, elapsedSeconds]);
+
+  // Simulate HR zone changes based on segment type
+  useEffect(() => {
+    if (!currentSegment) return;
+    switch (currentSegment.type) {
+      case 'warmup':
+      case 'easy':
+        setSimulatedHRZone(2);
+        break;
+      case 'recovery':
+      case 'cooldown':
+        setSimulatedHRZone(1);
+        break;
+      case 'steady':
+        setSimulatedHRZone(3);
+        break;
+      case 'tempo':
+        setSimulatedHRZone(4);
+        break;
+      case 'interval':
+        setSimulatedHRZone(4);
+        break;
+      default:
+        setSimulatedHRZone(2);
+    }
+  }, [currentSegment]);
+
+  // Coach cue on segment change
+  useEffect(() => {
+    if (!currentSegment) return;
+    const cueMessages: Record<string, string> = {
+      warmup: 'Start easy. Let your body warm up gradually.',
+      interval: 'Push it! Maintain strong, consistent form.',
+      recovery: 'Ease off. Let your heart rate come down.',
+      tempo: 'Find your rhythm. Controlled and steady.',
+      cooldown: 'Nice work! Slow it down and recover.',
+      easy: 'Keep it comfortable. Conversational pace.',
+      steady: 'Hold this pace. Stay relaxed and efficient.',
+    };
+
+    const msg = cueMessages[currentSegment.type] || currentSegment.description;
+    setCoachCue(msg);
+
+    if (coachCueTimerRef.current) clearTimeout(coachCueTimerRef.current);
+    coachCueTimerRef.current = setTimeout(() => {
+      setCoachCue(null);
+    }, 5000);
+
+    return () => {
+      if (coachCueTimerRef.current) clearTimeout(coachCueTimerRef.current);
+    };
+  }, [currentSegmentIndex, currentSegment]);
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+
+  const handleTogglePause = useCallback(() => {
+    setIsPaused((prev) => !prev);
+  }, []);
+
+  const handleCompleteSegment = useCallback(() => {
+    if (currentSegmentIndex < totalSegments - 1) {
+      completeRunSegment();
+    }
+  }, [currentSegmentIndex, totalSegments, completeRunSegment]);
+
+  const handleEndRun = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    finishRun();
+    router.back();
+  }, [finishRun, router]);
+
+  const handleCancel = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    cancelWorkout();
+    router.back();
+  }, [cancelWorkout, router]);
+
+  // ── Computed values ─────────────────────────────────────────────────────
+
+  const currentPace =
+    simulatedDistance > 0 ? (elapsedSeconds / 60) / simulatedDistance : 0;
+  const totalProgress =
+    runData.total_distance_km > 0
+      ? Math.min(simulatedDistance / runData.total_distance_km, 1)
+      : 0;
+  const segColor = currentSegment ? segmentColor(currentSegment.type) : colors.primary;
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* ── Top Bar: Audio Toggle ────────────────────────────────────────── */}
-      <Animated.View entering={FadeIn.delay(100).duration(400)} style={styles.topBar}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setAudioCuesEnabled(!audioCuesEnabled);
-          }}
-          style={({ pressed }) => [
-            styles.audioToggle,
-            !audioCuesEnabled && styles.audioToggleOff,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Typography
-            variant="caption1"
-            color={audioCuesEnabled ? colors.primary : colors.textTertiary}
-            style={{ fontWeight: '600' }}
-          >
-            {audioCuesEnabled ? 'AUDIO ON' : 'AUDIO OFF'}
-          </Typography>
-        </Pressable>
-
-        {/* Paused indicator */}
-        {isPaused && (
-          <View style={styles.pausedBadge}>
-            <Typography variant="caption1" color={colors.warning} style={{ fontWeight: '700', letterSpacing: 1 }}>
-              PAUSED
-            </Typography>
-          </View>
-        )}
-      </Animated.View>
-
-      {/* ── Segment Card ─────────────────────────────────────────────────── */}
-      {currentSegment && (
-        <Animated.View entering={FadeInDown.delay(200).duration(500).springify().damping(18)} style={styles.segmentCard}>
-          <View style={styles.segmentCardInner}>
-            <Badge
-              label={currentSegment.type.toUpperCase()}
-              color={colors.primary}
-              backgroundColor={withOpacity(colors.primary, 0.15)}
-              size="md"
-            />
-            <Typography
-              variant="callout"
-              color={colors.textSecondary}
-              style={{ marginTop: spacing.sm }}
-            >
-              {currentSegment.description}
-            </Typography>
-            <Typography variant="caption1" color={colors.textTertiary} style={{ marginTop: spacing.xs }}>
-              Segment {currentSegmentIndex + 1} of {totalSegments}
-            </Typography>
-          </View>
+      {/* ── Coach Cue Toast ────────────────────────────────────────────── */}
+      {coachCue && (
+        <Animated.View entering={FadeIn.duration(300)} style={styles.coachCueToast}>
+          <View style={[styles.coachCueDot, { backgroundColor: segColor }]} />
+          <Text style={styles.coachCueText} numberOfLines={2}>
+            {coachCue}
+          </Text>
         </Animated.View>
       )}
 
-      {/* ── Main Metrics ─────────────────────────────────────────────────── */}
-      <Animated.View entering={FadeIn.delay(300).duration(600)} style={styles.metricsArea}>
-        {/* Duration - hero metric */}
-        <View style={styles.heroMetric}>
-          <Mono align="center" style={styles.heroTime}>
-            {formatDuration(elapsedSeconds)}
-          </Mono>
-          <Typography variant="caption1" color={colors.textTertiary} align="center" style={styles.metricLabel}>
-            DURATION
-          </Typography>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* ── Elapsed Timer ──────────────────────────────────────────── */}
+        <Animated.View entering={FadeIn.delay(100).duration(500)} style={styles.timerSection}>
+          <Animated.View style={isPaused ? pulseStyle : undefined}>
+            <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+          </Animated.View>
+          <Text style={styles.timerLabel}>
+            {isPaused ? 'PAUSED' : 'ELAPSED'}
+          </Text>
+        </Animated.View>
 
-        {/* Secondary metrics in glass cards */}
-        <Animated.View entering={FadeInDown.delay(400).duration(500).springify().damping(18)} style={styles.secondaryRow}>
-          <View style={styles.metricCard}>
-            <Typography
-              variant="mono"
-              color={colors.textPrimary}
-              align="center"
-              style={styles.metricValue}
-            >
-              {formatDistance(totalDistance)}
-            </Typography>
-            <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.metricLabel}>
-              DISTANCE
-            </Typography>
-          </View>
-
-          <View style={styles.metricDivider} />
-
-          <View style={styles.metricCard}>
-            <Typography
-              variant="mono"
-              color={colors.textPrimary}
-              align="center"
-              style={styles.metricValue}
-            >
-              {formatPace(currentPace)}/km
-            </Typography>
-            <Typography variant="caption2" color={colors.textTertiary} align="center" style={styles.metricLabel}>
-              CURRENT PACE
-            </Typography>
+        {/* ── Segment Progress ───────────────────────────────────────── */}
+        <Animated.View
+          entering={FadeInDown.delay(150).duration(500)}
+          style={styles.segmentProgressRow}
+        >
+          <Text style={styles.segmentProgressText}>
+            Segment {currentSegmentIndex + 1} of {totalSegments}
+          </Text>
+          <View style={[styles.segmentProgressBadge, { backgroundColor: withOpacity(segColor, 0.12) }]}>
+            <Text style={[styles.segmentProgressBadgeText, { color: segColor }]}>
+              {currentSegment?.type.toUpperCase() ?? 'DONE'}
+            </Text>
           </View>
         </Animated.View>
 
-        {/* HR Zone Banner */}
-        {currentZone && (
-          <Animated.View
-            entering={FadeInDown.delay(450).duration(400)}
-            style={[styles.hrZoneBanner, { backgroundColor: withOpacity(currentZone.color, 0.1) }]}
-          >
-            <View style={[styles.hrZoneDot, { backgroundColor: currentZone.color }]} />
-            <Typography variant="caption1" color={currentZone.color} style={{ fontWeight: '600', flex: 1 }}>
-              Zone {currentZone.zone} — {currentZone.name}
-            </Typography>
-            <Typography variant="caption1" color={colors.textSecondary}>
-              {currentHR} bpm
-            </Typography>
-          </Animated.View>
-        )}
-
-        {/* Target pace indicator */}
-        {currentSegment && (
-          <Animated.View entering={FadeInDown.delay(500).duration(500).springify().damping(18)}>
-            <PaceZoneIndicator
-              currentPace={currentPace}
-              targetPace={currentSegment.target_pace_min_km}
-              style={styles.paceIndicator}
+        {/* ── Progress Bar ───────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(180).duration(500)} style={styles.progressBarWrapper}>
+          <View style={styles.progressBarTrack}>
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: `${Math.round(totalProgress * 100)}%`,
+                  backgroundColor: segColor,
+                },
+              ]}
             />
+          </View>
+          <Text style={styles.progressBarLabel}>
+            {simulatedDistance.toFixed(2)} / {runData.total_distance_km.toFixed(1)} km
+          </Text>
+        </Animated.View>
+
+        {/* ── Current Segment Card ───────────────────────────────────── */}
+        {currentSegment && (
+          <Animated.View entering={FadeInDown.delay(250).duration(500)}>
+            <View style={[styles.segmentCard, { borderLeftColor: segColor, borderLeftWidth: 3 }]}>
+              <View style={styles.segmentCardHeader}>
+                <Text style={[styles.segmentCardType, { color: segColor }]}>
+                  {currentSegment.type.toUpperCase()}
+                </Text>
+                <Text style={styles.segmentCardDescription}>
+                  {currentSegment.description}
+                </Text>
+              </View>
+
+              <View style={styles.segmentCardMetrics}>
+                <View style={styles.segmentMetric}>
+                  <Text style={styles.segmentMetricValue}>
+                    {currentSegment.distance_km} km
+                  </Text>
+                  <Text style={styles.segmentMetricLabel}>TARGET DIST</Text>
+                </View>
+                <View style={styles.segmentMetricDivider} />
+                <View style={styles.segmentMetric}>
+                  <Text style={styles.segmentMetricValue}>
+                    {formatPace(currentSegment.target_pace_min_km)}/km
+                  </Text>
+                  <Text style={styles.segmentMetricLabel}>TARGET PACE</Text>
+                </View>
+                <View style={styles.segmentMetricDivider} />
+                <View style={styles.segmentMetric}>
+                  <Text style={[styles.segmentMetricValue, { color: segColor }]}>
+                    {formatPace(currentPace)}/km
+                  </Text>
+                  <Text style={styles.segmentMetricLabel}>CURRENT</Text>
+                </View>
+              </View>
+            </View>
           </Animated.View>
         )}
-      </Animated.View>
 
-      {/* ── Progress Bar ─────────────────────────────────────────────────── */}
-      <Animated.View entering={FadeIn.delay(550).duration(400)} style={styles.progressSection}>
-        <ProgressBar
-          progress={totalProgress}
-          height={4}
-          color={colors.primary}
-          trackColor="rgba(255,255,255,0.06)"
-        />
-        <Typography
-          variant="caption2"
-          color={colors.textTertiary}
-          align="center"
-          style={{ marginTop: spacing.sm }}
-        >
-          {formatDistance(totalDistance)} / {formatDistance(runData.total_distance_km)}
-        </Typography>
-      </Animated.View>
+        {/* ── Distance & Pace Cards ──────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(320).duration(500)} style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={[styles.metricCardValue, { color: colors.running }]}>
+              {simulatedDistance.toFixed(2)}
+            </Text>
+            <Text style={styles.metricCardLabel}>DISTANCE (KM)</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={[styles.metricCardValue, { color: colors.textPrimary }]}>
+              {formatPace(currentPace)}
+            </Text>
+            <Text style={styles.metricCardLabel}>AVG PACE (/KM)</Text>
+          </View>
+        </Animated.View>
 
-      {/* ── Controls ─────────────────────────────────────────────────────── */}
-      <Animated.View entering={FadeInDown.delay(600).duration(500).springify().damping(18)} style={styles.controls}>
-        {/* Cancel button */}
-        <ControlButton
-          onPress={handleCancel}
-          size={60}
-          backgroundColor="rgba(255,255,255,0.03)"
-          borderColor="rgba(255,255,255,0.08)"
-          label="End"
-          labelColor={colors.textSecondary}
-        />
+        {/* ── Heart Rate Zone Indicator ───────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(380).duration(500)}>
+          <View style={styles.hrSection}>
+            <Text style={styles.hrSectionTitle}>HEART RATE ZONE</Text>
+            <View style={styles.hrBars}>
+              {HR_ZONES.map((zone) => {
+                const isActive = zone.zone === simulatedHRZone;
+                return (
+                  <View key={zone.zone} style={styles.hrBarRow}>
+                    <Text
+                      style={[
+                        styles.hrBarLabel,
+                        isActive && { color: zone.color, fontWeight: '700' },
+                      ]}
+                    >
+                      Z{zone.zone}
+                    </Text>
+                    <View style={styles.hrBarTrack}>
+                      <View
+                        style={[
+                          styles.hrBarFill,
+                          {
+                            backgroundColor: isActive ? zone.color : withOpacity(zone.color, 0.15),
+                            width: isActive ? '100%' : '40%',
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.hrBarName,
+                        isActive && { color: zone.color, fontWeight: '600' },
+                      ]}
+                    >
+                      {zone.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
 
-        {/* Pause / Resume - large center button */}
-        <ControlButton
-          onPress={togglePause}
-          size={80}
-          backgroundColor={isPaused ? withOpacity(colors.primary, 0.15) : 'rgba(255,255,255,0.06)'}
-          borderColor={isPaused ? colors.primary : 'rgba(255,255,255,0.1)'}
-          label={isPaused ? 'Go' : 'Pause'}
-          labelColor={isPaused ? colors.primary : colors.textPrimary}
-          glowColor={isPaused ? colors.primaryDark : undefined}
-        />
+        {/* ── Split Times ────────────────────────────────────────────── */}
+        {splits.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(440).duration(500)}>
+            <View style={styles.splitsSection}>
+              <Text style={styles.splitsSectionTitle}>SPLITS</Text>
+              {splits.map((split, idx) => (
+                <View key={idx} style={styles.splitRow}>
+                  <Text style={styles.splitKm}>KM {split.km}</Text>
+                  <Text style={styles.splitPace}>
+                    {formatPace(split.paceMinKm)}/km
+                  </Text>
+                  <Text style={styles.splitTime}>
+                    {formatTime(split.elapsedSeconds)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        )}
 
-        {/* Finish button */}
-        <ControlButton
-          onPress={handleFinish}
-          size={60}
-          backgroundColor={colors.primary}
-          label="Done"
-          labelColor={colors.textInverse}
-          glowColor={colors.primaryDark}
-        />
-      </Animated.View>
+        {/* Spacer for bottom buttons */}
+        <View style={{ height: 160 }} />
+      </ScrollView>
+
+      {/* ── Bottom Controls ────────────────────────────────────────────── */}
+      <View style={styles.bottomControls}>
+        {/* Complete Segment */}
+        {currentSegment && currentSegmentIndex < totalSegments - 1 && (
+          <Pressable
+            onPress={handleCompleteSegment}
+            style={({ pressed }) => [
+              styles.completeSegmentButton,
+              { backgroundColor: segColor },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.completeSegmentText}>Complete Segment</Text>
+          </Pressable>
+        )}
+
+        <View style={styles.bottomButtonRow}>
+          {/* Pause */}
+          <Pressable
+            onPress={handleTogglePause}
+            style={({ pressed }) => [
+              styles.pauseButton,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={styles.pauseButtonText}>
+              {isPaused ? 'Resume' : 'Pause'}
+            </Text>
+          </Pressable>
+
+          {/* End Run */}
+          <Pressable
+            onPress={handleEndRun}
+            style={({ pressed }) => [
+              styles.endButton,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.endButtonText}>End Run</Text>
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
-    paddingHorizontal: spacing.xl,
+    backgroundColor: colors.background,
   },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // ── Top bar ──────────────────────────────────────────────
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  audioToggle: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    backgroundColor: withOpacity(colors.primary, 0.1),
-    borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.2),
-  },
-  audioToggleOff: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  pausedBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    backgroundColor: withOpacity(colors.warning, 0.1),
-    borderWidth: 1,
-    borderColor: withOpacity(colors.warning, 0.2),
-  },
-
-  // ── Segment card ─────────────────────────────────────────
-  segmentCard: {
-    marginTop: spacing.lg,
-    borderRadius: borderRadius.lg,
-    ...glass.card,
-    overflow: 'hidden',
-  },
-  segmentCardInner: {
-    padding: spacing.lg,
-    alignItems: 'center',
-  },
-
-  // ── Metrics area ─────────────────────────────────────────
-  metricsArea: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingVertical: spacing.lg,
-  },
-  heroMetric: {
-    alignItems: 'center',
-    marginBottom: spacing.xxxl,
-  },
-  heroTime: {
-    fontSize: 64,
-    fontWeight: '200',
-    lineHeight: 72,
-    fontVariant: ['tabular-nums'],
-    color: colors.textPrimary,
-    letterSpacing: -1,
-  },
-  secondaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: borderRadius.lg,
-    ...glass.card,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-  },
-  metricCard: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  metricValue: {
-    fontSize: 30,
-    fontWeight: '300',
-    lineHeight: 36,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-  },
-  metricDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  metricLabel: {
-    letterSpacing: 1.2,
-    marginTop: spacing.xs,
-    fontWeight: '500',
-  },
-
-  // ── HR Zone ──────────────────────────────────────────────
-  hrZoneBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  scrollContent: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
-  hrZoneDot: {
+
+  // Coach Cue Toast
+  coachCueToast: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 20,
+    left: spacing.lg,
+    right: spacing.lg,
+    zIndex: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    gap: spacing.sm,
+    ...shadows.md,
+  },
+  coachCueDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-
-  // ── Pace indicator ───────────────────────────────────────
-  paceIndicator: {
-    marginTop: spacing.lg,
+  coachCueText: {
+    ...typography.footnote,
+    color: colors.textPrimary,
+    flex: 1,
+    fontWeight: '500',
   },
 
-  // ── Progress ─────────────────────────────────────────────
-  progressSection: {
-    paddingVertical: spacing.md,
-  },
-
-  // ── Controls ─────────────────────────────────────────────
-  controls: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
+  // Timer
+  timerSection: {
     alignItems: 'center',
-    paddingBottom: spacing.xxxl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  timerText: {
+    fontSize: 64,
+    fontWeight: '200',
+    lineHeight: 72,
+    color: colors.textPrimary,
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
+  },
+  timerLabel: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    fontWeight: '600',
+    letterSpacing: 2,
+    marginTop: spacing.xs,
+  },
+
+  // Segment Progress
+  segmentProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  segmentProgressText: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  segmentProgressBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+  },
+  segmentProgressBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+
+  // Progress Bar
+  progressBarWrapper: {
+    marginBottom: spacing.lg,
+  },
+  progressBarTrack: {
+    height: 4,
+    backgroundColor: withOpacity(colors.white, 0.06),
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressBarLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+
+  // Segment Card
+  segmentCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  segmentCardHeader: {
+    marginBottom: spacing.md,
+  },
+  segmentCardType: {
+    ...typography.headline,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  segmentCardDescription: {
+    ...typography.footnote,
+    color: colors.textTertiary,
+    marginTop: 4,
+  },
+  segmentCardMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  segmentMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  segmentMetricValue: {
+    ...typography.headline,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  segmentMetricLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  segmentMetricDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+
+  // Metrics Row
+  metricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  metricCardValue: {
+    fontSize: 28,
+    fontWeight: '300',
+    lineHeight: 34,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  metricCardLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    marginTop: spacing.xs,
+  },
+
+  // HR Zone
+  hrSection: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  hrSectionTitle: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: spacing.md,
+  },
+  hrBars: {
+    gap: spacing.sm,
+  },
+  hrBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  hrBarLabel: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    width: 24,
+    fontWeight: '500',
+  },
+  hrBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: withOpacity(colors.white, 0.04),
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  hrBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  hrBarName: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    width: 68,
+    textAlign: 'right',
+  },
+
+  // Splits
+  splitsSection: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  splitsSectionTitle: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: spacing.md,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs + 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: withOpacity(colors.border, 0.5),
+  },
+  splitKm: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    width: 60,
+  },
+  splitPace: {
+    ...typography.callout,
+    color: colors.running,
+    fontWeight: '500',
+    flex: 1,
+    textAlign: 'center',
+  },
+  splitTime: {
+    ...typography.callout,
+    color: colors.textTertiary,
+    width: 70,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // Bottom Controls
+  bottomControls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? 40 : spacing.xl,
     paddingTop: spacing.md,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+  completeSegmentButton: {
+    height: 48,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completeSegmentText: {
+    ...typography.headline,
+    color: colors.white,
+    fontWeight: '700',
+  },
+  bottomButtonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  pauseButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pauseButtonText: {
+    ...typography.headline,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  endButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: withOpacity(colors.error, 0.15),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.error, 0.3),
+  },
+  endButtonText: {
+    ...typography.headline,
+    color: colors.error,
+    fontWeight: '700',
   },
 });

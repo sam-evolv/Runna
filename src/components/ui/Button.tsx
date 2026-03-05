@@ -31,7 +31,7 @@ interface ButtonProps {
 }
 
 const variantStyles: Record<ButtonVariant, { bg: string; text: string; border?: string }> = {
-  primary: { bg: colors.primary, text: colors.textInverse },
+  primary: { bg: colors.primary, text: '#FFFFFF' },
   secondary: { bg: 'rgba(255,255,255,0.06)', text: colors.textPrimary },
   outline: { bg: 'transparent', text: colors.primary, border: colors.primary },
   ghost: { bg: 'transparent', text: colors.primary },
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.full,
   },
   fullWidth: {
     width: '100%',

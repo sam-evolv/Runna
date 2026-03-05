@@ -1,615 +1,910 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Switch } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Typography } from '@/components/ui/Typography';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import { IntervalDisplay } from '@/components/workout/IntervalDisplay';
-import { PlateCalculator } from '@/components/workout/PlateCalculator';
-import { useWorkout } from '@/hooks/useWorkout';
-import { usePlanStore } from '@/stores/planStore';
-import { supabase } from '@/services/api';
-import { generateBriefing, type WorkoutBriefing } from '@/services/workoutBriefing';
-import { convertToTreadmill, getTreadmillInstructions, formatTreadmillSpeed, type TreadmillWorkout } from '@/services/treadmillMode';
-import { colors, spacing, borderRadius, glass, animation, shadows, workoutTypeColors, withOpacity } from '@/constants/theme';
-import { formatWorkoutType, formatWorkoutDuration, formatDistance, formatPaceWithUnit } from '@/utils/formatters';
-import { formatDate } from '@/utils/dateUtils';
-import { formatPace } from '@/utils/paceCalculator';
-import { isRunningWorkout, isStrengthWorkout } from '@/types/workout';
-import type { Workout, RunningWorkoutData, StrengthWorkoutData } from '@/types/workout';
+import {
+  colors,
+  spacing,
+  borderRadius,
+  typography,
+  shadows,
+  withOpacity,
+  workoutTypeColors,
+  sportColors,
+} from '@/constants/theme';
+import {
+  isRunningWorkout,
+  isStrengthWorkout,
+} from '@/types/workout';
+import type {
+  Workout,
+  WorkoutType,
+  RunningWorkoutData,
+  StrengthWorkoutData,
+  RunSegment,
+  Exercise,
+} from '@/types/workout';
+import { useWorkoutStore } from '@/stores/workoutStore';
+
+// ─── Mock Data for web demo / standalone usage ──────────────────────────────
+
+const MOCK_RUNNING_WORKOUT: Workout = {
+  id: 'mock-run-1',
+  plan_id: 'plan-1',
+  user_id: 'user-1',
+  week_number: 3,
+  day_of_week: 2,
+  scheduled_date: new Date().toISOString().split('T')[0],
+  workout_type: 'interval_run',
+  title: 'Speed Intervals',
+  description:
+    'High-intensity interval session to build VO2max. Focus on maintaining consistent pace across all intervals with complete recovery between efforts.',
+  workout_data: {
+    type: 'interval_run',
+    total_distance_km: 8.4,
+    segments: [
+      { type: 'warmup', distance_km: 1.6, target_pace_min_km: 6.0, description: 'Easy jog to warm up' },
+      { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast — aim for 3:20' },
+      { type: 'recovery', distance_km: 0.4, target_pace_min_km: 6.3, description: 'Slow jog recovery' },
+      { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast — stay strong' },
+      { type: 'recovery', distance_km: 0.4, target_pace_min_km: 6.3, description: 'Slow jog recovery' },
+      { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast — dig deep' },
+      { type: 'recovery', distance_km: 0.4, target_pace_min_km: 6.3, description: 'Slow jog recovery' },
+      { type: 'interval', distance_km: 0.8, target_pace_min_km: 4.15, description: '800m fast — last one!' },
+      { type: 'cooldown', distance_km: 2.0, target_pace_min_km: 6.2, description: 'Easy cooldown jog' },
+    ],
+    notes: 'Keep your form tall during intervals. Recover fully between each rep.',
+  } as RunningWorkoutData,
+  estimated_duration_minutes: 48,
+  status: 'scheduled',
+  completed_at: null,
+  sort_order: 1,
+  created_at: new Date().toISOString(),
+};
+
+const MOCK_STRENGTH_WORKOUT: Workout = {
+  id: 'mock-str-1',
+  plan_id: 'plan-1',
+  user_id: 'user-1',
+  week_number: 3,
+  day_of_week: 3,
+  scheduled_date: new Date().toISOString().split('T')[0],
+  workout_type: 'strength',
+  title: 'Upper Body Power',
+  description:
+    'Heavy compound movements targeting chest, shoulders, and back. Progressive overload week — push for new PRs on the working sets.',
+  workout_data: {
+    type: 'strength',
+    focus: 'Upper Body',
+    exercises: [
+      {
+        name: 'Barbell Bench Press',
+        notes: 'Pause at the bottom for 1 second',
+        sets: [
+          { set_number: 1, reps: 8, weight_kg: 40, type: 'warmup', rest_seconds: 60 },
+          { set_number: 2, reps: 5, weight_kg: 70, type: 'working', rest_seconds: 120, rpe: 7 },
+          { set_number: 3, reps: 5, weight_kg: 75, type: 'working', rest_seconds: 120, rpe: 8 },
+          { set_number: 4, reps: 5, weight_kg: 80, type: 'working', rest_seconds: 150, rpe: 9 },
+          { set_number: 5, reps: 'AMRAP', weight_kg: 65, type: 'amrap', rest_seconds: 0 },
+        ],
+      },
+      {
+        name: 'Weighted Pull-ups',
+        notes: 'Full dead hang at the bottom',
+        sets: [
+          { set_number: 1, reps: 8, weight_kg: null, type: 'warmup', rest_seconds: 60 },
+          { set_number: 2, reps: 6, weight_kg: 10, type: 'working', rest_seconds: 120, rpe: 7 },
+          { set_number: 3, reps: 6, weight_kg: 15, type: 'working', rest_seconds: 120, rpe: 8 },
+          { set_number: 4, reps: 6, weight_kg: 15, type: 'working', rest_seconds: 120, rpe: 9 },
+        ],
+      },
+      {
+        name: 'Overhead Press',
+        sets: [
+          { set_number: 1, reps: 8, weight_kg: 30, type: 'warmup', rest_seconds: 60 },
+          { set_number: 2, reps: 8, weight_kg: 45, type: 'working', rest_seconds: 90, rpe: 7 },
+          { set_number: 3, reps: 8, weight_kg: 45, type: 'working', rest_seconds: 90, rpe: 8 },
+          { set_number: 4, reps: 8, weight_kg: 45, type: 'working', rest_seconds: 90, rpe: 9 },
+        ],
+      },
+      {
+        name: 'Dumbbell Rows',
+        superset_with: 'Lateral Raises',
+        sets: [
+          { set_number: 1, reps: 10, weight_kg: 30, type: 'working', rest_seconds: 60, rpe: 7 },
+          { set_number: 2, reps: 10, weight_kg: 32.5, type: 'working', rest_seconds: 60, rpe: 8 },
+          { set_number: 3, reps: 10, weight_kg: 32.5, type: 'working', rest_seconds: 60, rpe: 9 },
+        ],
+      },
+    ],
+    estimated_duration_minutes: 55,
+    notes: 'Focus on controlled eccentrics. Rest fully between heavy sets.',
+  } as StrengthWorkoutData,
+  estimated_duration_minutes: 55,
+  status: 'scheduled',
+  completed_at: null,
+  sort_order: 2,
+  created_at: new Date().toISOString(),
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatPace(pace: number): string {
+  const mins = Math.floor(pace);
+  const secs = Math.round((pace - mins) * 60);
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function segmentColor(type: RunSegment['type']): string {
+  switch (type) {
+    case 'warmup':
+      return '#F59E0B';
+    case 'interval':
+      return colors.running;
+    case 'tempo':
+      return '#EF4444';
+    case 'recovery':
+    case 'easy':
+      return colors.success;
+    case 'cooldown':
+      return colors.secondary;
+    case 'steady':
+      return colors.primary;
+    default:
+      return colors.textSecondary;
+  }
+}
+
+function setTypeLabel(type: string): string {
+  switch (type) {
+    case 'warmup':
+      return 'W';
+    case 'working':
+      return '';
+    case 'drop':
+      return 'D';
+    case 'amrap':
+      return 'A';
+    case 'failure':
+      return 'F';
+    default:
+      return '';
+  }
+}
+
+function formatWorkoutTypeLabel(type: WorkoutType): string {
+  return type
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function computeTotalVolume(exercises: Exercise[]): number {
+  let total = 0;
+  for (const ex of exercises) {
+    for (const s of ex.sets) {
+      const reps = typeof s.reps === 'number' ? s.reps : 0;
+      total += reps * (s.weight_kg ?? 0);
+    }
+  }
+  return total;
+}
+
+function computeTotalSets(exercises: Exercise[]): number {
+  return exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export default function WorkoutDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { startWorkout } = useWorkout();
-  const { skipWorkout } = usePlanStore();
+  const startRunWorkout = useWorkoutStore((s) => s.startRunWorkout);
+  const startStrengthWorkout = useWorkoutStore((s) => s.startStrengthWorkout);
+
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
-  const [briefing, setBriefing] = useState<WorkoutBriefing | null>(null);
-  const [briefingExpanded, setBriefingExpanded] = useState(false);
-  const [treadmillEnabled, setTreadmillEnabled] = useState(false);
-  const [treadmillData, setTreadmillData] = useState<TreadmillWorkout | null>(null);
 
   useEffect(() => {
     loadWorkout();
   }, [id]);
 
-  useEffect(() => {
-    if (workout) {
-      setBriefing(generateBriefing(workout));
-    }
-  }, [workout]);
-
-  useEffect(() => {
-    if (workout && treadmillEnabled && isRunningWorkout(workout.workout_data)) {
-      setTreadmillData(convertToTreadmill(workout.workout_data as RunningWorkoutData));
-    } else {
-      setTreadmillData(null);
-    }
-  }, [workout, treadmillEnabled]);
-
   const loadWorkout = async () => {
-    const { data } = await supabase
-      .from('workouts')
-      .select('*')
-      .eq('id', id)
-      .single();
-    setWorkout(data);
+    // Attempt to load from Supabase
+    try {
+      const { supabase } = await import('@/services/api');
+      const { data } = await supabase
+        .from('workouts')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (data) {
+        setWorkout(data as Workout);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Supabase not available — fall through to mock
+    }
+
+    // Fallback: demo mock data
+    if (id === 'mock-str-1' || id?.includes('str')) {
+      setWorkout(MOCK_STRENGTH_WORKOUT);
+    } else {
+      setWorkout(MOCK_RUNNING_WORKOUT);
+    }
     setLoading(false);
   };
+
+  const handleStart = () => {
+    if (!workout) return;
+    const data = workout.workout_data;
+
+    if (isRunningWorkout(data)) {
+      startRunWorkout(workout);
+      router.push('/workout/run-active');
+    } else if (isStrengthWorkout(data)) {
+      startStrengthWorkout(workout);
+      router.push('/workout/active');
+    }
+  };
+
+  // ── Loading State ───────────────────────────────────────────────────────
 
   if (loading || !workout) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loading}>
-          <Typography variant="body" color={colors.textSecondary}>Loading...</Typography>
+        <View style={styles.loadingWrapper}>
+          <View style={styles.loadingPulse}>
+            <Text style={styles.loadingText}>Loading workout...</Text>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
-  const workoutColor = workoutTypeColors[workout.workout_type] || colors.primary;
-  const isRun = isRunningWorkout(workout.workout_data);
-  const isStrength = isStrengthWorkout(workout.workout_data);
+  const data = workout.workout_data;
+  const isRun = isRunningWorkout(data);
+  const isStr = isStrengthWorkout(data);
+  const accentColor = workoutTypeColors[workout.workout_type] || colors.primary;
 
-  const handleStart = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startWorkout(workout);
-    if (isRun) {
-      router.push('/workout/run-active');
-    } else {
-      router.push('/workout/active');
-    }
-  };
-
-  const handleSkip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert('Skip Workout', 'Are you sure you want to skip this workout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Skip',
-        style: 'destructive',
-        onPress: () => {
-          skipWorkout(workout.id);
-          router.back();
-        },
-      },
-    ]);
-  };
-
-  const handleToggleBriefing = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setBriefingExpanded(!briefingExpanded);
-  };
-
-  const handleToggleTreadmill = (value: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTreadmillEnabled(value);
-  };
+  const runData = isRun ? (data as RunningWorkoutData) : null;
+  const strData = isStr ? (data as StrengthWorkoutData) : null;
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <Animated.View entering={FadeIn.duration(animation.entrance)} style={styles.header}>
-          <Button title="Close" onPress={() => router.back()} variant="ghost" size="sm" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeIn.duration(400)} style={styles.header}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.pressed,
+            ]}
+            hitSlop={12}
+          >
+            <Text style={styles.backButtonText}>Close</Text>
+          </Pressable>
         </Animated.View>
 
-        {/* Workout type badge */}
-        <Animated.View entering={FadeInDown.delay(100).duration(animation.entrance)}>
-          <Badge
-            label={formatWorkoutType(workout.workout_type)}
-            color={workoutColor}
-            backgroundColor={withOpacity(workoutColor, 0.12)}
-            size="md"
-          />
+        {/* ── Type Badge ─────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(80).duration(500)}>
+          <View style={[styles.badge, { backgroundColor: withOpacity(accentColor, 0.12) }]}>
+            <View style={[styles.badgeDot, { backgroundColor: accentColor }]} />
+            <Text style={[styles.badgeText, { color: accentColor }]}>
+              {formatWorkoutTypeLabel(workout.workout_type)}
+            </Text>
+          </View>
         </Animated.View>
 
-        {/* Title */}
-        <Animated.View entering={FadeInDown.delay(150).duration(animation.entrance)}>
-          <Typography variant="largeTitle" style={styles.title}>
-            {workout.title}
-          </Typography>
+        {/* ── Title ──────────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(140).duration(500)}>
+          <Text style={styles.title}>{workout.title}</Text>
         </Animated.View>
 
-        {/* Meta row */}
-        <Animated.View entering={FadeInDown.delay(200).duration(animation.entrance)} style={styles.metaRow}>
-          <Typography variant="callout" color={colors.textSecondary}>
-            {formatDate(workout.scheduled_date)}
-          </Typography>
-          <Typography variant="callout" color={colors.textTertiary}> · </Typography>
-          <Typography variant="callout" color={colors.textSecondary}>
-            {formatWorkoutDuration(workout.estimated_duration_minutes)}
-          </Typography>
-          {isRun && (
+        {/* ── Meta Row ───────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.metaRow}>
+          <Text style={styles.metaText}>{workout.estimated_duration_minutes} min</Text>
+          {runData && (
             <>
-              <Typography variant="callout" color={colors.textTertiary}> · </Typography>
-              <Typography variant="callout" color={colors.textSecondary}>
-                {formatDistance((workout.workout_data as RunningWorkoutData).total_distance_km)}
-              </Typography>
+              <Text style={styles.metaDot}> / </Text>
+              <Text style={styles.metaText}>{runData.total_distance_km.toFixed(1)} km</Text>
+              <Text style={styles.metaDot}> / </Text>
+              <Text style={styles.metaText}>{runData.segments.length} segments</Text>
+            </>
+          )}
+          {strData && (
+            <>
+              <Text style={styles.metaDot}> / </Text>
+              <Text style={styles.metaText}>{strData.exercises.length} exercises</Text>
+              <Text style={styles.metaDot}> / </Text>
+              <Text style={styles.metaText}>{computeTotalSets(strData.exercises)} sets</Text>
             </>
           )}
         </Animated.View>
 
-        {/* Description */}
-        {workout.description && (
-          <Animated.View entering={FadeInDown.delay(250).duration(animation.entrance)}>
-            <Typography variant="body" color={colors.textSecondary} style={styles.description}>
-              {workout.description}
-            </Typography>
+        {/* ── Description ────────────────────────────────────────────────── */}
+        {workout.description ? (
+          <Animated.View entering={FadeInDown.delay(260).duration(500)}>
+            <Text style={styles.description}>{workout.description}</Text>
           </Animated.View>
-        )}
+        ) : null}
 
-        {/* Workout Briefing */}
-        {briefing && (
-          <Animated.View entering={FadeInDown.delay(300).duration(animation.entrance)}>
-            <Card style={styles.briefingCard}>
-              <TouchableOpacity
-                onPress={handleToggleBriefing}
-                activeOpacity={0.7}
-                style={styles.briefingHeader}
-              >
-                <View style={styles.briefingTitleRow}>
-                  <Typography
-                    variant="caption1"
-                    color={colors.primary}
-                    style={styles.sectionLabel}
-                  >
-                    SESSION BRIEFING
-                  </Typography>
-                  <Typography variant="caption2" color={colors.textTertiary}>
-                    {briefingExpanded ? '▲' : '▼'}
-                  </Typography>
-                </View>
-                <Typography variant="callout" color={colors.textSecondary} style={{ marginTop: spacing.xs }}>
-                  {briefing.purpose.length > 100 && !briefingExpanded
-                    ? briefing.purpose.slice(0, 100) + '...'
-                    : briefing.purpose}
-                </Typography>
-              </TouchableOpacity>
+        {/* ── Summary Card ───────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.delay(320).duration(500)}>
+          <View style={styles.summaryCard}>
+            {isRun && runData && (
+              <View style={styles.summaryRow}>
+                <SummaryItem label="Distance" value={`${runData.total_distance_km.toFixed(1)} km`} accent={accentColor} />
+                <SummaryDivider />
+                <SummaryItem label="Duration" value={`~${workout.estimated_duration_minutes} min`} accent={accentColor} />
+                <SummaryDivider />
+                <SummaryItem
+                  label="Avg Pace"
+                  value={`${formatPace(
+                    runData.segments.reduce((s, seg) => s + seg.distance_km * seg.target_pace_min_km, 0) /
+                      runData.total_distance_km
+                  )}/km`}
+                  accent={accentColor}
+                />
+              </View>
+            )}
+            {isStr && strData && (
+              <View style={styles.summaryRow}>
+                <SummaryItem label="Focus" value={strData.focus} accent={accentColor} />
+                <SummaryDivider />
+                <SummaryItem label="Volume" value={`${Math.round(computeTotalVolume(strData.exercises) / 1000)}t`} accent={accentColor} />
+                <SummaryDivider />
+                <SummaryItem label="Duration" value={`~${strData.estimated_duration_minutes} min`} accent={accentColor} />
+              </View>
+            )}
+          </View>
+        </Animated.View>
 
-              {briefingExpanded && (
-                <Animated.View entering={FadeIn.duration(300)} style={styles.briefingBody}>
-                  {/* Key Tips */}
-                  <View style={styles.briefingSection}>
-                    <Typography
-                      variant="caption1"
-                      color={colors.textTertiary}
-                      style={[styles.sectionLabel, { marginBottom: spacing.xs }]}
-                    >
-                      KEY TIPS
-                    </Typography>
-                    {briefing.keyTips.map((tip, i) => (
-                      <View key={i} style={styles.tipRow}>
-                        <View style={[styles.tipDot, { backgroundColor: colors.primary }]} />
-                        <Typography variant="footnote" color={colors.textSecondary}>
-                          {tip}
-                        </Typography>
+        {/* ── Running Segments ───────────────────────────────────────────── */}
+        {isRun && runData && (
+          <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.section}>
+            <Text style={styles.sectionLabel}>WORKOUT STRUCTURE</Text>
+            {runData.segments.map((seg, idx) => {
+              const color = segmentColor(seg.type);
+              return (
+                <View key={idx} style={styles.segmentRow}>
+                  <View style={[styles.segmentIndicator, { backgroundColor: color }]} />
+                  <View style={styles.segmentContent}>
+                    <View style={styles.segmentTopRow}>
+                      <View style={[styles.segmentTypeBadge, { backgroundColor: withOpacity(color, 0.12) }]}>
+                        <Text style={[styles.segmentTypeText, { color }]}>
+                          {seg.type.toUpperCase()}
+                        </Text>
                       </View>
-                    ))}
-                  </View>
-
-                  {/* Nutrition */}
-                  <View style={styles.briefingSection}>
-                    <Typography
-                      variant="caption1"
-                      color={colors.textTertiary}
-                      style={[styles.sectionLabel, { marginBottom: spacing.xs }]}
-                    >
-                      NUTRITION
-                    </Typography>
-                    <Typography variant="footnote" color={colors.textSecondary}>
-                      {briefing.nutrition}
-                    </Typography>
-                  </View>
-
-                  {/* Warm-up */}
-                  <View style={styles.briefingSection}>
-                    <Typography
-                      variant="caption1"
-                      color={colors.textTertiary}
-                      style={[styles.sectionLabel, { marginBottom: spacing.xs }]}
-                    >
-                      WARM-UP
-                    </Typography>
-                    <Typography variant="footnote" color={colors.textSecondary}>
-                      {briefing.warmupAdvice}
-                    </Typography>
-                  </View>
-
-                  {/* Mental Cue */}
-                  <Card style={styles.mentalCueCard}>
-                    <Typography variant="footnote" color={colors.primary} style={{ fontWeight: '600', fontStyle: 'italic' }}>
-                      "{briefing.mentalCue}"
-                    </Typography>
-                  </Card>
-                </Animated.View>
-              )}
-            </Card>
-          </Animated.View>
-        )}
-
-        {/* Treadmill toggle for running workouts */}
-        {isRun && (
-          <Animated.View entering={FadeInDown.delay(350).duration(animation.entrance)} style={styles.treadmillToggle}>
-            <View style={styles.treadmillLabel}>
-              <Typography variant="callout" style={{ fontWeight: '500' }}>
-                Treadmill Mode
-              </Typography>
-              <Typography variant="caption2" color={colors.textTertiary}>
-                Show speed & incline instead of pace
-              </Typography>
-            </View>
-            <Switch
-              value={treadmillEnabled}
-              onValueChange={handleToggleTreadmill}
-              trackColor={{ false: 'rgba(255,255,255,0.06)', true: withOpacity(colors.primary, 0.35) }}
-              thumbColor={treadmillEnabled ? colors.primary : 'rgba(255,255,255,0.15)'}
-            />
-          </Animated.View>
-        )}
-
-        {/* Treadmill segments view */}
-        {treadmillData && (
-          <Animated.View entering={FadeInUp.delay(100).duration(animation.entrance)} style={styles.section}>
-            <Typography
-              variant="caption1"
-              color={colors.textTertiary}
-              style={[styles.sectionLabel, styles.sectionTitle]}
-            >
-              TREADMILL INSTRUCTIONS
-            </Typography>
-            {treadmillData.segments.map((seg, i) => (
-              <Card key={i} style={styles.treadmillSegCard}>
-                <View style={styles.treadmillSegRow}>
-                  <Badge
-                    label={seg.type.toUpperCase()}
-                    color={workoutColor}
-                    backgroundColor={withOpacity(workoutColor, 0.12)}
-                  />
-                  <Typography variant="caption2" color={colors.textTertiary}>
-                    {Math.round(seg.durationMinutes)} min
-                  </Typography>
-                </View>
-                <View style={styles.treadmillMetrics}>
-                  <View style={styles.treadmillMetric}>
-                    <Typography variant="headline" color={colors.textPrimary}>
-                      {formatTreadmillSpeed(seg.speedKmh)}
-                    </Typography>
-                    <Typography
-                      variant="caption2"
-                      color={colors.textTertiary}
-                      style={{ fontWeight: '600', letterSpacing: 0.5 }}
-                    >
-                      SPEED
-                    </Typography>
-                  </View>
-                  <View style={styles.treadmillDivider} />
-                  <View style={styles.treadmillMetric}>
-                    <Typography variant="headline" color={colors.textPrimary}>
-                      {seg.inclinePercent}%
-                    </Typography>
-                    <Typography
-                      variant="caption2"
-                      color={colors.textTertiary}
-                      style={{ fontWeight: '600', letterSpacing: 0.5 }}
-                    >
-                      INCLINE
-                    </Typography>
-                  </View>
-                  <View style={styles.treadmillDivider} />
-                  <View style={styles.treadmillMetric}>
-                    <Typography variant="headline" color={colors.textTertiary}>
-                      {formatPace(seg.originalPaceMinKm)}/km
-                    </Typography>
-                    <Typography
-                      variant="caption2"
-                      color={colors.textTertiary}
-                      style={{ fontWeight: '600', letterSpacing: 0.5 }}
-                    >
-                      PACE
-                    </Typography>
+                      <Text style={styles.segmentMeta}>
+                        {seg.distance_km} km @ {formatPace(seg.target_pace_min_km)}/km
+                      </Text>
+                    </View>
+                    {seg.description ? (
+                      <Text style={styles.segmentDescription}>{seg.description}</Text>
+                    ) : null}
                   </View>
                 </View>
-                <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: spacing.sm }}>
-                  {seg.description}
-                </Typography>
-              </Card>
-            ))}
+              );
+            })}
           </Animated.View>
         )}
 
-        {/* Running segments (when not in treadmill mode) */}
-        {isRun && !treadmillData && (
-          <Animated.View entering={FadeInDown.delay(400).duration(animation.entrance)} style={styles.section}>
-            <Typography
-              variant="caption1"
-              color={colors.textTertiary}
-              style={[styles.sectionLabel, styles.sectionTitle]}
-            >
-              WORKOUT STRUCTURE
-            </Typography>
-            <IntervalDisplay segments={(workout.workout_data as RunningWorkoutData).segments} />
-          </Animated.View>
-        )}
+        {/* ── Strength Exercises ─────────────────────────────────────────── */}
+        {isStr && strData && (
+          <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.section}>
+            <Text style={styles.sectionLabel}>EXERCISES</Text>
+            {strData.exercises.map((exercise, exIdx) => (
+              <View key={exIdx} style={styles.exerciseCard}>
+                <View style={styles.exerciseHeader}>
+                  <View style={styles.exerciseNumberCircle}>
+                    <Text style={styles.exerciseNumberText}>{exIdx + 1}</Text>
+                  </View>
+                  <View style={styles.exerciseHeaderText}>
+                    <Text style={styles.exerciseName}>{exercise.name}</Text>
+                    {exercise.superset_with ? (
+                      <Text style={styles.supersetLabel}>
+                        Superset with {exercise.superset_with}
+                      </Text>
+                    ) : null}
+                    {exercise.notes ? (
+                      <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
+                    ) : null}
+                  </View>
+                </View>
 
-        {/* Strength exercises */}
-        {isStrength && (
-          <Animated.View entering={FadeInDown.delay(400).duration(animation.entrance)} style={styles.section}>
-            <Typography
-              variant="caption1"
-              color={colors.textTertiary}
-              style={[styles.sectionLabel, styles.sectionTitle]}
-            >
-              EXERCISES
-            </Typography>
-            {(workout.workout_data as StrengthWorkoutData).exercises.map((exercise, idx) => (
-              <Card key={idx} style={styles.exerciseCard}>
-                <Typography variant="headline">{exercise.name}</Typography>
-                {exercise.notes && (
-                  <Typography variant="caption1" color={colors.textSecondary} style={{ marginTop: 2 }}>
-                    {exercise.notes}
-                  </Typography>
-                )}
-                <View style={styles.setsList}>
-                  {exercise.sets.map((set, setIdx) => (
-                    <View key={setIdx} style={styles.setRow}>
-                      <Typography variant="callout" color={colors.textTertiary} style={styles.setNum}>
+                {/* Set Table */}
+                <View style={styles.setTable}>
+                  <View style={styles.setTableHeader}>
+                    <Text style={[styles.setHeaderCell, styles.setColNum]}>SET</Text>
+                    <Text style={[styles.setHeaderCell, styles.setColType]}>TYPE</Text>
+                    <Text style={[styles.setHeaderCell, styles.setColReps]}>REPS</Text>
+                    <Text style={[styles.setHeaderCell, styles.setColWeight]}>WEIGHT</Text>
+                    <Text style={[styles.setHeaderCell, styles.setColRest]}>REST</Text>
+                  </View>
+                  {exercise.sets.map((set, sIdx) => (
+                    <View
+                      key={sIdx}
+                      style={[
+                        styles.setTableRow,
+                        sIdx === exercise.sets.length - 1 && styles.setTableRowLast,
+                      ]}
+                    >
+                      <Text style={[styles.setCell, styles.setColNum, styles.setCellNum]}>
                         {set.set_number}
-                      </Typography>
-                      <Typography variant="callout">
-                        {set.reps} reps
-                      </Typography>
-                      {set.weight_kg !== null && (
-                        <Typography variant="callout" color={colors.primary}>
-                          {set.weight_kg} kg
-                        </Typography>
-                      )}
-                      <Typography variant="caption1" color={colors.textTertiary}>
-                        {set.rest_seconds}s rest
-                      </Typography>
+                      </Text>
+                      <View style={styles.setColType}>
+                        {set.type !== 'working' ? (
+                          <View
+                            style={[
+                              styles.setTypeBadge,
+                              {
+                                backgroundColor: withOpacity(
+                                  set.type === 'warmup'
+                                    ? '#F59E0B'
+                                    : set.type === 'amrap'
+                                    ? colors.primary
+                                    : set.type === 'failure'
+                                    ? colors.error
+                                    : colors.secondary,
+                                  0.12
+                                ),
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.setTypeBadgeText,
+                                {
+                                  color:
+                                    set.type === 'warmup'
+                                      ? '#F59E0B'
+                                      : set.type === 'amrap'
+                                      ? colors.primary
+                                      : set.type === 'failure'
+                                      ? colors.error
+                                      : colors.secondary,
+                                },
+                              ]}
+                            >
+                              {set.type.toUpperCase()}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.setCell}>-</Text>
+                        )}
+                      </View>
+                      <Text style={[styles.setCell, styles.setColReps, styles.setCellValue]}>
+                        {set.reps}
+                      </Text>
+                      <Text style={[styles.setCell, styles.setColWeight, styles.setCellValue]}>
+                        {set.weight_kg !== null ? `${set.weight_kg} kg` : 'BW'}
+                      </Text>
+                      <Text style={[styles.setCell, styles.setColRest]}>
+                        {set.rest_seconds > 0 ? `${set.rest_seconds}s` : '-'}
+                      </Text>
                     </View>
                   ))}
                 </View>
-                {exercise.sets[0]?.weight_kg && (
-                  <PlateCalculator targetWeight={exercise.sets[0].weight_kg} />
-                )}
-              </Card>
+              </View>
             ))}
           </Animated.View>
         )}
 
-        {/* Notes */}
-        {(isRun ? (workout.workout_data as RunningWorkoutData).notes : (workout.workout_data as StrengthWorkoutData).notes) && (
-          <Animated.View entering={FadeInDown.delay(500).duration(animation.entrance)}>
-            <Card style={styles.notesCard}>
-              <Typography
-                variant="caption1"
-                color={colors.textTertiary}
-                style={[styles.sectionLabel, { marginBottom: 4 }]}
-              >
-                COACH NOTES
-              </Typography>
-              <Typography variant="callout" color={colors.textSecondary}>
-                {isRun
-                  ? (workout.workout_data as RunningWorkoutData).notes
-                  : (workout.workout_data as StrengthWorkoutData).notes}
-              </Typography>
-            </Card>
+        {/* ── Notes ──────────────────────────────────────────────────────── */}
+        {(runData?.notes || strData?.notes) ? (
+          <Animated.View entering={FadeInDown.delay(500).duration(500)}>
+            <View style={styles.notesCard}>
+              <Text style={styles.notesLabel}>COACH NOTES</Text>
+              <Text style={styles.notesText}>
+                {runData?.notes || strData?.notes}
+              </Text>
+            </View>
           </Animated.View>
-        )}
+        ) : null}
       </ScrollView>
 
-      {/* Action buttons */}
+      {/* ── Start Button ──────────────────────────────────────────────────── */}
       {workout.status === 'scheduled' && (
-        <Animated.View entering={FadeInUp.delay(400).duration(animation.entrance)} style={styles.actions}>
-          <Button
-            title="Start Workout"
+        <Animated.View entering={FadeInUp.delay(400).duration(500)} style={styles.bottomActions}>
+          <Pressable
             onPress={handleStart}
-            size="lg"
-            fullWidth
-          />
-          <Button
-            title="Skip"
-            onPress={handleSkip}
-            variant="ghost"
-            size="sm"
-            fullWidth
-            style={{ marginTop: spacing.sm }}
-          />
+            style={({ pressed }) => [
+              styles.startButton,
+              { backgroundColor: accentColor },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.startButtonText}>Start Workout</Text>
+          </Pressable>
         </Animated.View>
       )}
     </SafeAreaView>
   );
 }
 
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+function SummaryItem({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color: accent }]}>{value}</Text>
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SummaryDivider() {
+  return <View style={styles.summaryDivider} />;
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: colors.background,
   },
-  loading: {
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 140,
+  },
+
+  // Loading
+  loadingWrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 120,
+  loadingPulse: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.card,
   },
+  loadingText: {
+    ...typography.callout,
+    color: colors.textSecondary,
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingVertical: spacing.sm,
+    justifyContent: 'flex-start',
+    paddingVertical: spacing.md,
   },
-  title: {
+  backButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonText: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+
+  // Badge
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+    gap: 6,
     marginTop: spacing.md,
   },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  badgeText: {
+    ...typography.caption1,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  // Title
+  title: {
+    ...typography.largeTitle,
+    color: colors.textPrimary,
+    marginTop: spacing.md,
+  },
+
+  // Meta
   metaRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     marginTop: spacing.sm,
   },
-  description: {
-    marginTop: spacing.md,
+  metaText: {
+    ...typography.callout,
+    color: colors.textSecondary,
   },
-  // Section label pattern
-  sectionLabel: {
+  metaDot: {
+    ...typography.callout,
+    color: colors.textTertiary,
+  },
+
+  // Description
+  description: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+    lineHeight: 24,
+  },
+
+  // Summary Card
+  summaryCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xl,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryValue: {
+    ...typography.headline,
     fontWeight: '700',
-    letterSpacing: 1.5,
+  },
+  summaryLabel: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    marginTop: 2,
+    fontWeight: '500',
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  // Briefing
-  briefingCard: {
+  summaryDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+
+  // Sections
+  section: {
     marginTop: spacing.xl,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
   },
-  briefingHeader: {
-    // touchable area
-  },
-  briefingTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  briefingBody: {
-    marginTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    paddingTop: spacing.md,
-  },
-  briefingSection: {
+  sectionLabel: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    fontWeight: '700',
+    letterSpacing: 1.5,
     marginBottom: spacing.md,
   },
-  tipRow: {
+
+  // Segment rows (running)
+  segmentRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
+  },
+  segmentIndicator: {
+    width: 3,
+    borderRadius: 2,
+    marginRight: spacing.md,
+  },
+  segmentContent: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  segmentTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
-  tipDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    marginTop: 6,
+  segmentTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
   },
-  mentalCueCard: {
-    backgroundColor: withOpacity('#22D3EE', 0.06),
-    borderWidth: 1,
-    borderColor: withOpacity('#22D3EE', 0.12),
-    marginTop: spacing.sm,
+  segmentTypeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
-  // Treadmill
-  treadmillToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    marginTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+  segmentMeta: {
+    ...typography.footnote,
+    color: colors.textPrimary,
+    fontWeight: '500',
   },
-  treadmillLabel: {
-    flex: 1,
+  segmentDescription: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    marginTop: 4,
   },
-  treadmillSegCard: {
-    marginBottom: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  treadmillSegRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  treadmillMetrics: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  treadmillMetric: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  treadmillDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  // Existing
-  section: {
-    marginTop: spacing.xxl,
-  },
-  sectionTitle: {
-    marginBottom: spacing.md,
-  },
+
+  // Exercise cards (strength)
   exerciseCard: {
-    marginBottom: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.border,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  setsList: {
+  exerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  exerciseNumberCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: withOpacity(colors.primary, 0.12),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exerciseNumberText: {
+    ...typography.caption1,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  exerciseHeaderText: {
+    flex: 1,
+  },
+  exerciseName: {
+    ...typography.headline,
+    color: colors.textPrimary,
+  },
+  supersetLabel: {
+    ...typography.caption1,
+    color: colors.secondary,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  exerciseNotes: {
+    ...typography.caption1,
+    color: colors.textTertiary,
+    marginTop: 4,
+  },
+
+  // Set table
+  setTable: {
     marginTop: spacing.md,
   },
-  setRow: {
+  setTableHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  setHeaderCell: {
+    ...typography.caption2,
+    color: colors.textTertiary,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+  },
+  setTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomColor: withOpacity(colors.border, 0.5),
   },
-  setNum: {
-    width: 24,
+  setTableRowLast: {
+    borderBottomWidth: 0,
   },
+  setCell: {
+    ...typography.callout,
+    color: colors.textSecondary,
+  },
+  setCellNum: {
+    color: colors.textTertiary,
+    fontWeight: '500',
+  },
+  setCellValue: {
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  setColNum: {
+    width: 36,
+  },
+  setColType: {
+    width: 64,
+  },
+  setColReps: {
+    flex: 1,
+  },
+  setColWeight: {
+    flex: 1,
+    textAlign: 'right',
+  },
+  setColRest: {
+    width: 52,
+    textAlign: 'right',
+  },
+  setTypeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  setTypeBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  // Notes
   notesCard: {
-    marginTop: spacing.xxl,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: withOpacity(colors.primary, 0.06),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: withOpacity(colors.primary, 0.12),
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginTop: spacing.xl,
   },
-  actions: {
+  notesLabel: {
+    ...typography.caption1,
+    color: colors.primary,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginBottom: spacing.sm,
+  },
+  notesText: {
+    ...typography.callout,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+
+  // Bottom Actions
+  bottomActions: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxxl,
+    paddingBottom: Platform.OS === 'ios' ? 40 : spacing.xl,
     paddingTop: spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  startButton: {
+    height: 56,
+    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.md,
+  },
+  startButtonText: {
+    ...typography.headline,
+    color: colors.white,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

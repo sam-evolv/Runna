@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -12,23 +12,20 @@ import Animated, {
   withSequence,
   Easing,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Typography } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/Button';
-import { colors, spacing, borderRadius, glass, shadows, withOpacity } from '@/constants/theme';
+import { colors, spacing, borderRadius, shadows, withOpacity, typography } from '@/constants/theme';
 
 const FEATURES = [
-  { icon: '\u{1F3C3}', text: 'Run training: C25K to marathon' },
-  { icon: '\u{1F4AA}', text: 'Strength: beginner to powerlifting' },
-  { icon: '\u{1F525}', text: 'HYROX & triathlon race prep' },
-  { icon: '\u{1F9E0}', text: 'AI coach that adapts to you' },
+  { icon: '\u{1F3C3}', text: 'Run training: C25K to marathon', color: colors.running },
+  { icon: '\u{1F4AA}', text: 'Strength & powerlifting programs', color: colors.strength },
+  { icon: '\u{1F525}', text: 'HYROX & triathlon race prep', color: colors.hyrox },
+  { icon: '\u{1F9E0}', text: 'AI coach that adapts to you', color: colors.primary },
 ] as const;
 
 export default function WelcomeScreen() {
   const router = useRouter();
 
   const pulseScale = useSharedValue(1);
-  const glowOpacity = useSharedValue(0.3);
+  const glowOpacity = useSharedValue(0.2);
 
   useEffect(() => {
     pulseScale.value = withRepeat(
@@ -41,8 +38,8 @@ export default function WelcomeScreen() {
     );
     glowOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.6, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.3, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.5, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.2, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
       false,
@@ -59,96 +56,65 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Animated background glow */}
       <Animated.View style={[styles.bgGlow, glowStyle]} />
 
-      {/* Hero Section */}
       <View style={styles.hero}>
         <Animated.View
           entering={FadeIn.duration(1000).delay(200)}
           style={styles.logoContainer}
         >
           <Animated.View style={logoAnimStyle}>
-            <Typography
-              variant="largeTitle"
-              color={colors.primary}
-              align="center"
-              style={[styles.logo, shadows.glow(colors.primary)]}
-            >
+            <Text style={[styles.logo, shadows.glow(colors.primary)]}>
               PULSE
-            </Typography>
+            </Text>
           </Animated.View>
           <View style={styles.logoAccent} />
         </Animated.View>
 
         <Animated.View entering={FadeInUp.duration(700).delay(600)}>
-          <Typography
-            variant="title2"
-            color={colors.textPrimary}
-            align="center"
-            style={styles.tagline}
-          >
-            Your AI coach for{'\n'}every fitness goal
-          </Typography>
+          <Text style={styles.tagline}>
+            Train smarter.{'\n'}Go further.
+          </Text>
         </Animated.View>
 
         <Animated.View entering={FadeInUp.duration(700).delay(850)}>
-          <Typography
-            variant="body"
-            color={colors.textSecondary}
-            align="center"
-            style={styles.subtitle}
-          >
-            One app. Every goal. Running, strength,{'\n'}HYROX, triathlon — all with AI coaching.
-          </Typography>
+          <Text style={styles.subtitle}>
+            AI-powered coaching for runners, lifters,{'\n'}and athletes of every level.
+          </Text>
         </Animated.View>
       </View>
 
-      {/* Features */}
       <View style={styles.features}>
         {FEATURES.map((feature, index) => (
           <Animated.View
-            key={feature.icon}
+            key={feature.text}
             entering={FadeInUp.duration(500).delay(1100 + index * 120)}
             style={styles.featureCard}
           >
-            <View style={styles.featureIconContainer}>
-              <Typography variant="title3">{feature.icon}</Typography>
+            <View style={[styles.featureIconContainer, { backgroundColor: withOpacity(feature.color, 0.12) }]}>
+              <Text style={styles.featureIcon}>{feature.icon}</Text>
             </View>
-            <Typography
-              variant="callout"
-              color={colors.textSecondary}
-              style={styles.featureText}
-            >
-              {feature.text}
-            </Typography>
+            <Text style={styles.featureText}>{feature.text}</Text>
           </Animated.View>
         ))}
       </View>
 
-      {/* Buttons */}
       <Animated.View
         entering={FadeInUp.duration(600).delay(1650)}
         style={styles.buttons}
       >
-        <Button
-          title="Get Started"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push('/(auth)/register');
-          }}
-          size="lg"
-          fullWidth
-          haptic={false}
-        />
-        <Button
-          title="I already have an account"
-          onPress={() => router.push('/(auth)/login')}
-          variant="ghost"
-          size="lg"
-          fullWidth
+        <Pressable
+          style={styles.ctaButton}
+          onPress={() => router.push('/(auth)/register')}
+        >
+          <Text style={styles.ctaButtonText}>Get Started</Text>
+        </Pressable>
+        <Pressable
           style={styles.ghostButton}
-        />
+          onPress={() => router.push('/(auth)/login')}
+        >
+          <Text style={styles.ghostButtonText}>I already have an account</Text>
+        </Pressable>
       </Animated.View>
     </SafeAreaView>
   );
@@ -169,7 +135,6 @@ const styles = StyleSheet.create({
     height: 300,
     borderRadius: 150,
     backgroundColor: colors.primary,
-    opacity: 0.3,
   },
   hero: {
     flex: 1,
@@ -185,6 +150,7 @@ const styles = StyleSheet.create({
     fontSize: 56,
     fontWeight: '800',
     letterSpacing: 12,
+    color: colors.primary,
   },
   logoAccent: {
     marginTop: spacing.md,
@@ -194,12 +160,16 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity(colors.primary, 0.5),
   },
   tagline: {
+    ...typography.hero,
+    color: colors.textPrimary,
+    textAlign: 'center',
     marginBottom: spacing.md,
-    lineHeight: 30,
   },
   subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
     paddingHorizontal: spacing.md,
-    lineHeight: 24,
   },
   features: {
     paddingTop: spacing.lg,
@@ -212,17 +182,23 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     borderRadius: borderRadius.lg,
-    ...glass.card,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   featureIconContainer: {
     width: 44,
     height: 44,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  featureIcon: {
+    fontSize: 22,
+  },
   featureText: {
+    ...typography.callout,
+    color: colors.textSecondary,
     flex: 1,
     marginLeft: spacing.md,
   },
@@ -230,7 +206,25 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.sm,
   },
+  ctaButton: {
+    height: 56,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.glow(colors.primary),
+  },
+  ctaButtonText: {
+    ...typography.headline,
+    color: '#FFFFFF',
+  },
   ghostButton: {
-    marginTop: spacing.xs,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ghostButtonText: {
+    ...typography.callout,
+    color: colors.primary,
   },
 });
