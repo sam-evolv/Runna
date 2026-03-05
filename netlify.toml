@@ -1,11 +1,6 @@
 [build]
-  command = "npx expo export --platform web"
+  command = "npx expo export --platform web && node fix-module.js"
   publish = "dist"
-
-[[headers]]
-  for = "/_expo/static/js/*"
-  [headers.values]
-    Content-Type = "application/javascript; charset=utf-8"
 
 [[redirects]]
   from = "/*"
