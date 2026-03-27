@@ -31,6 +31,10 @@ export default function RootLayout() {
           options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
         />
         <Stack.Screen
+          name="workout/checkin"
+          options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
+        />
+        <Stack.Screen
           name="coach/chat"
           options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
         />

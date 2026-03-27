@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "scheme": "pulse",
     "splash": {
-      "backgroundColor": "#0A0A0F"
+      "backgroundColor": "#050505"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -26,7 +26,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0F"
+        "backgroundColor": "#050505"
       },
       "package": "com.evolvai.pulse",
       "permissions": [

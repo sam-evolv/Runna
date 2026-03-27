@@ -246,6 +246,15 @@ export default function WorkoutDetailScreen() {
 
   const handleStart = () => {
     if (!workout) return;
+    // Navigate to pre-workout check-in first
+    router.push({
+      pathname: '/workout/checkin',
+      params: { type: 'pre_workout', workoutId: workout.id },
+    } as any);
+  };
+
+  const handleStartDirect = () => {
+    if (!workout) return;
     const data = workout.workout_data;
 
     if (isRunningWorkout(data)) {
@@ -426,6 +435,9 @@ export default function WorkoutDetailScreen() {
                   </View>
                 </View>
 
+                {/* Exercise Education */}
+                <ExerciseEducation exerciseName={exercise.name} />
+
                 {/* Set Table */}
                 <View style={styles.setTable}>
                   <View style={styles.setTableHeader}>
@@ -535,6 +547,135 @@ export default function WorkoutDetailScreen() {
     </SafeAreaView>
   );
 }
+
+// ─── Exercise Education ──────────────────────────────────────────────────────
+
+const EXERCISE_EXPLANATIONS: Record<string, { why: string; muscles: string; tip: string }> = {
+  'Barbell Bench Press': {
+    why: 'The bench press is the king of upper body pressing. It builds chest mass and strength while developing your anterior deltoids and triceps — essential for pushing power and a well-defined chest.',
+    muscles: 'Pectorals (major & minor), anterior deltoids, triceps',
+    tip: 'Keep shoulder blades pinched and feet flat. Lower the bar to mid-chest with control.',
+  },
+  'Weighted Pull-ups': {
+    why: 'Pull-ups target your entire back with emphasis on the lats. Adding weight drives serious strength gains and builds the V-taper that makes your physique stand out.',
+    muscles: 'Latissimus dorsi, biceps, rear deltoids, rhomboids',
+    tip: 'Full dead hang at the bottom, chin over bar at the top. Control the negative.',
+  },
+  'Overhead Press': {
+    why: 'Standing OHP builds boulder shoulders and core stability simultaneously. It targets all three deltoid heads with emphasis on the anterior and medial heads.',
+    muscles: 'Deltoids (all heads), triceps, upper chest, core stabilisers',
+    tip: 'Brace your core, squeeze glutes, press straight up. Avoid excessive back arch.',
+  },
+  'Dumbbell Rows': {
+    why: 'Single-arm rows fix imbalances and build thick back muscles. They target the mid-back and lats from a different angle than pull-ups.',
+    muscles: 'Latissimus dorsi, rhomboids, rear deltoids, biceps',
+    tip: 'Pull to your hip, not your chest. Keep your core tight and avoid rotation.',
+  },
+  'Bench Press': {
+    why: 'Builds chest size and pressing strength. The flat bench targets the mid-pec fibers — the foundation of chest development.',
+    muscles: 'Pectorals, anterior deltoids, triceps',
+    tip: 'Drive feet into floor, arch slightly, and control the eccentric.',
+  },
+};
+
+function ExerciseEducation({ exerciseName }: { exerciseName: string }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const explanation = EXERCISE_EXPLANATIONS[exerciseName];
+
+  if (!explanation) return null;
+
+  return (
+    <Pressable
+      onPress={() => setExpanded(!expanded)}
+      style={exerciseEducationStyles.container}
+    >
+      <View style={exerciseEducationStyles.header}>
+        <Text style={exerciseEducationStyles.headerIcon}>{'\u{1F4A1}'}</Text>
+        <Text style={exerciseEducationStyles.headerText}>Why this exercise?</Text>
+        <Text style={exerciseEducationStyles.chevron}>
+          {expanded ? '\u2303' : '\u2304'}
+        </Text>
+      </View>
+      {expanded && (
+        <Animated.View entering={FadeInDown.duration(200)}>
+          <Text style={exerciseEducationStyles.whyText}>{explanation.why}</Text>
+          <View style={exerciseEducationStyles.muscleRow}>
+            <Text style={exerciseEducationStyles.muscleLabel}>TARGETS</Text>
+            <Text style={exerciseEducationStyles.muscleText}>{explanation.muscles}</Text>
+          </View>
+          <View style={exerciseEducationStyles.tipRow}>
+            <Text style={exerciseEducationStyles.tipLabel}>FORM TIP</Text>
+            <Text style={exerciseEducationStyles.tipText}>{explanation.tip}</Text>
+          </View>
+        </Animated.View>
+      )}
+    </Pressable>
+  );
+}
+
+const exerciseEducationStyles = StyleSheet.create({
+  container: {
+    marginTop: spacing.sm,
+    backgroundColor: withOpacity(colors.primary, 0.04),
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.08),
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerIcon: {
+    fontSize: 14,
+  },
+  headerText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  chevron: {
+    color: colors.primary,
+    fontSize: 14,
+  },
+  whyText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: spacing.sm,
+  },
+  muscleRow: {
+    marginTop: spacing.sm,
+  },
+  muscleLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  muscleText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  tipRow: {
+    marginTop: spacing.sm,
+  },
+  tipLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  tipText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+});
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 

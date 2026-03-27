@@ -38,11 +38,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="activity"
+        name="progress"
         options={{
-          title: 'Activity',
+          title: 'Progress',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDCCA'} label="Activity" color={color} focused={focused} />
+            <TabIcon icon={'\uD83D\uDCCA'} label="Progress" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="coach"
+        options={{
+          title: 'Coach',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={'\uD83E\uDDE0'} label="Coach" color={color} focused={focused} />
           ),
         }}
       />
@@ -53,6 +62,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon icon={'\uD83D\uDC64'} label="Profile" color={color} focused={focused} />
           ),
+        }}
+      />
+      {/* Hide old activity tab */}
+      <Tabs.Screen
+        name="activity"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
@@ -120,8 +136,8 @@ function TabIcon({
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.background,
-    borderTopColor: colors.border,
+    backgroundColor: '#050505',
+    borderTopColor: 'rgba(255,255,255,0.06)',
     borderTopWidth: 1,
     height: 88,
     paddingTop: spacing.sm,
@@ -132,15 +148,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    minWidth: 60,
+    minWidth: 52,
     paddingTop: 2,
   },
   tabEmoji: {
-    fontSize: 22,
+    fontSize: 20,
     textAlign: 'center',
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 0.3,
     textAlign: 'center',
   },
@@ -149,6 +165,6 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.primary,
-    marginTop: 2,
+    marginTop: 1,
   },
 });

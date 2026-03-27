@@ -9,7 +9,6 @@ import {
   Pressable,
   Text,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { colors, spacing, borderRadius, withOpacity, shadows } from '@/constants/theme';
@@ -24,46 +23,46 @@ interface Message {
 
 // ─── Quick Reply Suggestions ────────────────────────────────────────────────────
 const QUICK_REPLIES = [
-  "Reschedule today's workout",
-  "I'm feeling tired",
+  "How's my progress?",
+  "I'm feeling tired today",
+  "Nutrition advice",
+  "Adjust my plan",
+  "Sleep tips",
   "Make it harder",
-  "Add a rest day",
-  "Nutrition tips",
-  "Am I on track?",
 ];
 
 // ─── Coach Response Logic ───────────────────────────────────────────────────────
 const COACH_RESPONSES: Record<string, string> = {
-  reschedule:
-    "No problem! I've shifted today's session to tomorrow and adjusted the rest of your week. Your body will thank you for the flexibility. Consistency over perfection, always.",
+  progress:
+    "Looking at your data, you're right on track. Your consistency this month is at 87%, which is excellent. Training load is building progressively, and your recovery metrics look solid. Keep doing what you're doing — you're building toward something great.",
   tired:
-    "I hear you -- that's completely valid. I've dialed back today's intensity by 20% and swapped the intervals for a steady-state session. Remember: listening to your body IS part of the training. Recovery is where gains happen.",
-  harder:
-    "Love that energy! I've bumped up your next three sessions -- expect higher volume, shorter rest periods, and a progression on your main lifts. If it starts feeling unsustainable, just say the word and I'll recalibrate.",
-  rest:
-    "Smart move. I've inserted a rest day today and shifted your remaining sessions forward. Strategic rest now prevents forced time off later. Light walking and mobility work are great options if you want to stay active.",
+    "I hear you — that's completely valid. I've dialed back today's intensity by 20% and swapped the intervals for a steady-state session. Remember: listening to your body IS part of the training. Recovery is where gains happen.",
   nutrition:
-    "Great question! Here are my top tips for your current training phase:\n\n1. Eat within 60 min post-workout -- aim for a 3:1 carb-to-protein ratio\n2. Stay hydrated: target 35ml per kg of body weight daily\n3. Don't skip pre-workout fuel -- a banana and coffee 45 min before works wonders\n4. Sleep 7-9 hours -- it's the most underrated performance enhancer",
-  track:
-    "Looking at your data, you're right on schedule. Your consistency this month is at 87%, which is excellent. Training load is building progressively, and your recovery metrics look solid. Keep doing what you're doing -- you're building toward something great.",
+    "Great question! Here are my top tips for your current training phase:\n\n1. Eat within 60 min post-workout — aim for a 3:1 carb-to-protein ratio\n2. Stay hydrated: target 35ml per kg of body weight daily\n3. Don't skip pre-workout fuel — a banana and coffee 45 min before works wonders\n4. Sleep 7-9 hours — it's the most underrated performance enhancer",
+  adjust:
+    "I've reviewed your recent sessions and made some adjustments. Your tempo pace has improved, so I'm bumping your threshold work up slightly. I've also shifted your long run to Saturday based on your energy patterns. The overall volume stays the same — just smarter distribution.",
+  sleep:
+    "Sleep is the #1 recovery tool. Here's what the science says:\n\n1. Aim for 7-9 hours — anything under 6 significantly impairs performance\n2. Keep your room cool (18-20°C) and dark\n3. Avoid screens 30 min before bed\n4. Consistent sleep/wake times matter more than total hours\n5. A 20-min nap before 2pm can boost afternoon training",
+  harder:
+    "Love that energy! I've bumped up your next three sessions — expect higher volume, shorter rest periods, and a progression on your main lifts. If it starts feeling unsustainable, just say the word and I'll recalibrate.",
   default:
-    "That's a great point. Based on your current training load and goals, I'd recommend staying the course with your plan. Your body is adapting well, and the progression is right where it should be. Trust the process -- the results are coming. Anything else I can help with?",
+    "That's a great point. Based on your current training load and goals, I'd recommend staying the course with your plan. Your body is adapting well, and the progression is right where it should be. Trust the process — the results are coming. Anything else I can help with?",
 };
 
 function getCoachResponse(userMessage: string): string {
   const lower = userMessage.toLowerCase();
-  if (lower.includes('reschedule') || lower.includes('move') || lower.includes('swap'))
-    return COACH_RESPONSES.reschedule;
-  if (lower.includes('tired') || lower.includes('fatigue') || lower.includes('exhausted'))
+  if (lower.includes('progress') || lower.includes('track') || lower.includes('doing'))
+    return COACH_RESPONSES.progress;
+  if (lower.includes('tired') || lower.includes('fatigue') || lower.includes('exhausted') || lower.includes('feeling'))
     return COACH_RESPONSES.tired;
-  if (lower.includes('harder') || lower.includes('intense') || lower.includes('challenge') || lower.includes('push'))
-    return COACH_RESPONSES.harder;
-  if (lower.includes('rest') || lower.includes('day off') || lower.includes('break') || lower.includes('recover'))
-    return COACH_RESPONSES.rest;
   if (lower.includes('nutrition') || lower.includes('eat') || lower.includes('food') || lower.includes('diet'))
     return COACH_RESPONSES.nutrition;
-  if (lower.includes('track') || lower.includes('progress') || lower.includes('on track') || lower.includes('doing'))
-    return COACH_RESPONSES.track;
+  if (lower.includes('adjust') || lower.includes('change') || lower.includes('plan') || lower.includes('reschedule'))
+    return COACH_RESPONSES.adjust;
+  if (lower.includes('sleep') || lower.includes('rest') || lower.includes('recover'))
+    return COACH_RESPONSES.sleep;
+  if (lower.includes('harder') || lower.includes('intense') || lower.includes('push') || lower.includes('challenge'))
+    return COACH_RESPONSES.harder;
   return COACH_RESPONSES.default;
 }
 
@@ -77,15 +76,14 @@ function formatTime(timestamp: number): string {
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
-export default function CoachChatScreen() {
-  const router = useRouter();
+export default function CoachTab() {
   const scrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'coach',
       content:
-        "Hey! I'm Pulse, your AI coach. I've reviewed your training plan and I'm here to help you crush your goals. What can I help with today?",
+        "Hey! I'm your AI health coach. I've reviewed your training plan and I'm here to help you crush your goals. Ask me anything about your training, nutrition, recovery, or how to optimise your programme.",
       timestamp: Date.now() - 60000,
     },
   ]);
@@ -113,7 +111,6 @@ export default function CoachChatScreen() {
       setIsTyping(true);
       scrollToBottom();
 
-      // Simulate AI response with 1.5s delay
       const response = getCoachResponse(trimmed);
       setTimeout(() => {
         const coachMsg: Message = {
@@ -130,37 +127,29 @@ export default function CoachChatScreen() {
     [scrollToBottom],
   );
 
-  const handleQuickReply = (reply: string) => {
-    sendMessage(reply);
-  };
-
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* ── Header ──────────────────────────────────────────────────── */}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* ── Header ──────────────────────────────────────────────── */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.aceAvatar}>
-            <Text style={styles.aceAvatarText}>P</Text>
+          <View style={styles.coachAvatar}>
+            <Text style={styles.coachAvatarText}>P</Text>
           </View>
           <View>
-            <Text style={styles.headerTitle}>Pulse</Text>
-            <Text style={styles.headerSubtitle}>Your AI Coach</Text>
+            <Text style={styles.headerTitle}>Pulse Coach</Text>
+            <View style={styles.onlineRow}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.headerSubtitle}>Always available</Text>
+            </View>
           </View>
         </View>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.closeButton}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Text style={styles.closeIcon}>X</Text>
-        </Pressable>
       </Animated.View>
 
-      {/* ── Chat Area ───────────────────────────────────────────────── */}
+      {/* ── Chat Area ───────────────────────────────────────────── */}
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={88}
       >
         <ScrollView
           ref={scrollRef}
@@ -169,20 +158,16 @@ export default function CoachChatScreen() {
           onContentSizeChange={scrollToBottom}
           keyboardShouldPersistTaps="handled"
         >
-          {messages.map((msg, idx) => {
+          {messages.map((msg) => {
             const isUser = msg.role === 'user';
             return (
-              <Animated.View
-                key={msg.id}
-                entering={FadeInDown.delay(idx === messages.length - 1 ? 0 : 0).duration(300)}
-              >
+              <Animated.View key={msg.id} entering={FadeInDown.duration(300)}>
                 <View
                   style={[
                     styles.bubbleWrapper,
                     isUser ? styles.bubbleWrapperUser : styles.bubbleWrapperCoach,
                   ]}
                 >
-                  {/* Coach avatar inline */}
                   {!isUser && (
                     <View style={styles.bubbleAvatarSmall}>
                       <Text style={styles.bubbleAvatarSmallText}>P</Text>
@@ -218,7 +203,6 @@ export default function CoachChatScreen() {
             );
           })}
 
-          {/* Typing indicator */}
           {isTyping && (
             <Animated.View entering={FadeIn.duration(200)}>
               <View style={[styles.bubbleWrapper, styles.bubbleWrapperCoach]}>
@@ -237,29 +221,27 @@ export default function CoachChatScreen() {
           )}
         </ScrollView>
 
-        {/* ── Quick Replies ─────────────────────────────────────────── */}
-        <Animated.View entering={FadeInUp.delay(200).duration(300)}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickRepliesContainer}
-          >
-            {QUICK_REPLIES.map((reply) => (
-              <Pressable
-                key={reply}
-                onPress={() => handleQuickReply(reply)}
-                style={({ pressed }) => [
-                  styles.quickReplyPill,
-                  pressed && styles.quickReplyPillPressed,
-                ]}
-              >
-                <Text style={styles.quickReplyText}>{reply}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Animated.View>
+        {/* ── Quick Replies ─────────────────────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickRepliesContainer}
+        >
+          {QUICK_REPLIES.map((reply) => (
+            <Pressable
+              key={reply}
+              onPress={() => sendMessage(reply)}
+              style={({ pressed }) => [
+                styles.quickReplyPill,
+                pressed && styles.quickReplyPillPressed,
+              ]}
+            >
+              <Text style={styles.quickReplyText}>{reply}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
 
-        {/* ── Input Bar ─────────────────────────────────────────────── */}
+        {/* ── Input Bar ─────────────────────────────────────────── */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.textInput}
@@ -294,8 +276,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -310,7 +290,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  aceAvatar: {
+  coachAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -319,7 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadows.glow(colors.primary),
   },
-  aceAvatarText: {
+  coachAvatarText: {
     color: '#050505',
     fontSize: 20,
     fontWeight: '700',
@@ -330,29 +310,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.3,
   },
+  onlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+  },
   headerSubtitle: {
     color: colors.success,
     fontSize: 12,
     fontWeight: '500',
-    marginTop: 1,
   },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeIcon: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  // Keyboard / chat area
   keyboardView: {
     flex: 1,
   },
@@ -361,8 +335,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
-
-  // Bubbles
   bubbleWrapper: {
     flexDirection: 'row',
     marginBottom: spacing.md,
@@ -395,7 +367,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   coachBubble: {
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderBottomLeftRadius: 6,
   },
   userBubble: {
@@ -412,7 +384,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   userBubbleText: {
-    color: '#FFFFFF',
+    color: '#050505',
   },
   timestamp: {
     fontSize: 11,
@@ -426,8 +398,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginRight: 4,
   },
-
-  // Typing indicator
   typingBubble: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -443,8 +413,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.textMuted,
   },
-
-  // Quick replies
   quickRepliesContainer: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -467,8 +435,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: -0.1,
   },
-
-  // Input bar
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,7 +447,7 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
@@ -502,13 +468,12 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.35,
-    ...shadows.sm,
   },
   sendButtonPressed: {
     opacity: 0.8,
   },
   sendArrow: {
-    color: '#FFFFFF',
+    color: '#050505',
     fontSize: 20,
     fontWeight: '700',
     marginTop: -1,

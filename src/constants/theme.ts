@@ -4,39 +4,39 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Premium Dark Palette ────────────────────────────────────────────────────
 export const colors = {
-  // Primary — electric purple
-  primary: '#7C3AED',
-  primaryDark: '#6D28D9',
-  primaryLight: '#A78BFA',
-  primaryMuted: 'rgba(124,58,237,0.12)',
-  primaryGlow: 'rgba(124,58,237,0.25)',
+  // Primary — electric cyan
+  primary: '#22D3EE',
+  primaryDark: '#0891B2',
+  primaryLight: '#67E8F9',
+  primaryMuted: 'rgba(34,211,238,0.12)',
+  primaryGlow: 'rgba(34,211,238,0.25)',
 
   // Secondary — teal
-  secondary: '#06B6D4',
-  secondaryMuted: 'rgba(6,182,212,0.12)',
+  secondary: '#0891B2',
+  secondaryMuted: 'rgba(8,145,178,0.12)',
 
-  // Accent — pink
-  accent: '#FD79A8',
-  accentMuted: 'rgba(253,121,168,0.12)',
+  // Accent — cyan dim
+  accent: '#06B6D4',
+  accentMuted: 'rgba(6,182,212,0.12)',
 
-  // Background — premium dark
-  background: '#0A0A0F',
-  surface: '#12121A',
-  card: '#1A1A27',
-  surfaceLight: '#1A1A27',
-  surfaceElevated: '#22222F',
+  // Background — pure dark
+  background: '#050505',
+  surface: 'rgba(255,255,255,0.03)',
+  card: 'rgba(255,255,255,0.03)',
+  surfaceLight: 'rgba(255,255,255,0.05)',
+  surfaceElevated: 'rgba(255,255,255,0.06)',
 
   // Text
   textPrimary: '#FFFFFF',
   textSecondary: '#9CA3AF',
   textTertiary: '#6B7280',
   textMuted: '#4B5563',
-  textInverse: '#0A0A0F',
+  textInverse: '#050505',
 
   // Status
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
+  success: '#34D399',
+  warning: '#FBBF24',
+  error: '#F87171',
 
   // Workout type accent colours
   running: '#F97316',
@@ -58,8 +58,8 @@ export const colors = {
   coral: '#EF4444',
 
   // Utility
-  border: '#2A2A3D',
-  borderLight: 'rgba(255,255,255,0.08)',
+  border: 'rgba(255,255,255,0.06)',
+  borderLight: 'rgba(255,255,255,0.04)',
   overlay: 'rgba(0,0,0,0.75)',
   transparent: 'transparent',
   white: '#FFFFFF',
@@ -236,21 +236,21 @@ export const shadows = {
 // ─── Glass Card Styles ───────────────────────────────────────────────────────
 export const glass = {
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.lg,
   },
   cardElevated: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     borderRadius: borderRadius.lg,
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.md,
   },
 } as const;
@@ -278,13 +278,13 @@ export const animation = {
 
 // ─── Gradients ───────────────────────────────────────────────────────────────
 export const gradients = {
-  primary: ['#7C3AED', '#06B6D4'] as const,
-  cta: ['#7C3AED', '#06B6D4'] as const,
-  success: ['#10B981', '#34D399'] as const,
-  warning: ['#F59E0B', '#FBBF24'] as const,
-  error: ['#EF4444', '#F87171'] as const,
-  purple: ['#7C3AED', '#A78BFA'] as const,
-  surface: ['#0A0A0F', '#12121A'] as const,
+  primary: ['#22D3EE', '#0891B2'] as const,
+  cta: ['#22D3EE', '#0891B2'] as const,
+  success: ['#34D399', '#10B981'] as const,
+  warning: ['#FBBF24', '#F59E0B'] as const,
+  error: ['#F87171', '#EF4444'] as const,
+  cyan: ['#22D3EE', '#67E8F9'] as const,
+  surface: ['#050505', '#0A0A0F'] as const,
 } as const;
 
 // ─── Layout ──────────────────────────────────────────────────────────────────

@@ -350,6 +350,14 @@ export default function TodayScreen() {
     router.push(`/workout/${todayWorkout.id}` as any);
   };
 
+  const handleCheckin = () => {
+    if (!todayWorkout) return;
+    router.push({
+      pathname: '/workout/checkin',
+      params: { type: 'pre_workout', workoutId: todayWorkout.id },
+    } as any);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -370,6 +378,28 @@ export default function TodayScreen() {
             </Text>
           )}
         </Animated.View>
+
+        {/* ── How Are You Feeling? ──────────────────────────── */}
+        {todayWorkout && todayWorkout.workout_type !== 'rest' && (
+          <Animated.View entering={FadeInDown.delay(80).duration(300)}>
+            <Pressable
+              onPress={handleCheckin}
+              style={({ pressed }) => [
+                styles.checkinPrompt,
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              <View style={styles.checkinLeft}>
+                <Text style={styles.checkinEmoji}>{'\u{1F4AC}'}</Text>
+                <View>
+                  <Text style={styles.checkinTitle}>How are you feeling?</Text>
+                  <Text style={styles.checkinSubtitle}>Quick check-in before your workout</Text>
+                </View>
+              </View>
+              <Text style={styles.checkinChevron}>{'\u203A'}</Text>
+            </Pressable>
+          </Animated.View>
+        )}
 
         {/* ── Today's Workout Card ────────────────────────── */}
         {todayWorkout && todayWorkout.workout_type !== 'rest' ? (
@@ -537,22 +567,22 @@ export default function TodayScreen() {
           <View style={styles.coachCard}>
             <View style={styles.coachHeader}>
               <View style={styles.coachAvatar}>
-                <Text style={styles.coachAvatarText}>A</Text>
+                <Text style={styles.coachAvatarText}>P</Text>
               </View>
               <View style={styles.coachNameBlock}>
-                <Text style={styles.coachName}>Ace</Text>
+                <Text style={styles.coachName}>Pulse</Text>
                 <Text style={styles.coachSubtitle}>AI Coach</Text>
               </View>
             </View>
             <Text style={styles.coachMessage}>{coachMessage}</Text>
             <Pressable
-              onPress={() => router.push('/coach/chat' as any)}
+              onPress={() => router.push('/(tabs)/coach' as any)}
               style={({ pressed }) => [
                 styles.coachButton,
                 pressed && { opacity: 0.7 },
               ]}
             >
-              <Text style={styles.coachButtonText}>Chat with Ace</Text>
+              <Text style={styles.coachButtonText}>Chat with Coach</Text>
             </Pressable>
           </View>
         </Animated.View>
@@ -644,6 +674,41 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 
+  // Check-in Prompt
+  checkinPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: withOpacity(colors.primary, 0.06),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.15),
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  checkinLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  checkinEmoji: {
+    fontSize: 24,
+  },
+  checkinTitle: {
+    ...typography.headline,
+    color: colors.primary,
+  },
+  checkinSubtitle: {
+    ...typography.caption1,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  checkinChevron: {
+    fontSize: 22,
+    color: colors.primary,
+  },
+
   // Today's Workout Card
   todayCard: {
     backgroundColor: colors.surface,
@@ -721,7 +786,7 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     ...typography.headline,
-    color: '#FFFFFF',
+    color: '#050505',
     fontWeight: '700',
   },
 
