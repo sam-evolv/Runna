@@ -305,8 +305,12 @@ export default function ActiveWorkoutScreen() {
   const handleFinish = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     await finishStrength();
-    router.back();
-  }, [finishStrength, router]);
+    // Navigate to post-workout feedback
+    router.replace({
+      pathname: '/workout/checkin',
+      params: { type: 'post_workout', workoutId: activeWorkout?.id || '' },
+    } as any);
+  }, [finishStrength, router, activeWorkout]);
 
   const handleCancel = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

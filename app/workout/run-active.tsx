@@ -271,8 +271,12 @@ export default function RunActiveScreen() {
   const handleEndRun = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     finishRun();
-    router.back();
-  }, [finishRun, router]);
+    // Navigate to post-workout feedback
+    router.replace({
+      pathname: '/workout/checkin',
+      params: { type: 'post_workout', workoutId: activeWorkout?.id || '' },
+    } as any);
+  }, [finishRun, router, activeWorkout]);
 
   const handleCancel = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
