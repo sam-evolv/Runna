@@ -66,7 +66,7 @@ export default function ProfileScreen() {
 
   // Demo fallback
   const displayName =
-    (user as { full_name?: string })?.full_name || 'Demo Athlete';
+    (user as { full_name?: string })?.full_name || 'Pulse User';
   const displayEmail = user?.email || 'demo@pulse.app';
 
   const goalType = goal
@@ -173,7 +173,7 @@ export default function ProfileScreen() {
                     pressed && styles.connectButtonPressed,
                   ]}
                 >
-                  <Text style={styles.connectButtonText}>Connect</Text>
+                  <Text style={styles.connectButtonText}>Coming Soon</Text>
                 </Pressable>
               </View>
             ))}

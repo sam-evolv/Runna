@@ -23,15 +23,11 @@ import {
   shadows,
 } from '@/constants/theme';
 import type { Workout, WorkoutType } from '@/types/workout';
+import { DEMO_WORKOUTS, DEMO_COMPLETED_COUNT, DEMO_TOTAL_WEEK } from '@/constants/demoData';
 
-// ─── Demo Data ──────────────────────────────────────────────────────────────
-// Ensures the app looks great on web deployment and when Supabase data is empty.
-
-function makeDemoDate(offsetDays: number): string {
-  return format(addDays(new Date(), offsetDays), 'yyyy-MM-dd');
-}
-
-const DEMO_WORKOUTS: Workout[] = [
+// ─── Legacy Demo Data (kept for reference, using shared module above) ──────
+// @ts-ignore - unused, demo data is now in @/constants/demoData
+const _LEGACY_DEMO: Workout[] = [
   {
     id: 'demo-1',
     plan_id: 'demo-plan',
@@ -171,8 +167,7 @@ const DEMO_WORKOUTS: Workout[] = [
   },
 ];
 
-const DEMO_COMPLETED_COUNT = 3;
-const DEMO_TOTAL_WEEK = 6;
+// DEMO_COMPLETED_COUNT and DEMO_TOTAL_WEEK imported from @/constants/demoData
 
 // ─── Motivational Messages ──────────────────────────────────────────────────
 
@@ -337,7 +332,7 @@ export default function TodayScreen() {
 
   const greeting = getGreeting();
   const firstName =
-    (user as any)?.full_name?.split(' ')[0] || 'Athlete';
+    (user as any)?.full_name?.split(' ')[0] || 'there';
   const motivationalMsg = getMotivationalMessage();
   const coachMessage = getCoachMessage();
 

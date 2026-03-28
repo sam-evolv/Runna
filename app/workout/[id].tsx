@@ -236,8 +236,16 @@ export default function WorkoutDetailScreen() {
       // Supabase not available — fall through to mock
     }
 
-    // Fallback: demo mock data
-    if (id === 'mock-str-1' || id?.includes('str')) {
+    // Fallback: look up in demo data by ID, then fall back to mock by type
+    const { DEMO_WORKOUTS } = await import('@/constants/demoData');
+    const demoMatch = DEMO_WORKOUTS?.find((w: any) => w.id === id);
+    if (demoMatch) {
+      setWorkout(demoMatch as Workout);
+      setLoading(false);
+      return;
+    }
+
+    if (id === 'mock-str-1' || id?.includes('str') || id?.includes('strength')) {
       setWorkout(MOCK_STRENGTH_WORKOUT);
     } else {
       setWorkout(MOCK_RUNNING_WORKOUT);
