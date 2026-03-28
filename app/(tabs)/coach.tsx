@@ -79,15 +79,8 @@ function formatTime(timestamp: number): string {
 // ─── Component ──────────────────────────────────────────────────────────────────
 export default function CoachTab() {
   const scrollRef = useRef<ScrollView>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'coach',
-      content:
-        "Hey! I'm your AI health coach. I've reviewed your training plan and I'm here to help you crush your goals. Ask me anything about your training, nutrition, recovery, or how to optimise your programme.",
-      timestamp: Date.now() - 60000,
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const hasConversation = messages.length > 0;
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
@@ -152,96 +145,114 @@ export default function CoachTab() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={88}
       >
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={scrollToBottom}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.map((msg) => {
-            const isUser = msg.role === 'user';
-            return (
-              <Animated.View key={msg.id} entering={FadeInDown.duration(300)}>
-                <View
-                  style={[
-                    styles.bubbleWrapper,
-                    isUser ? styles.bubbleWrapperUser : styles.bubbleWrapperCoach,
-                  ]}
-                >
-                  {!isUser && (
+        {!hasConversation ? (
+          /* ── Empty State: Hero + Pills ─────────────────────────── */
+          <View style={styles.emptyStateContainer}>
+            <Animated.View entering={FadeIn.duration(500)} style={styles.emptyStateContent}>
+              {/* Logo */}
+              <View style={styles.heroLogo}>
+                <Sparkles size={36} color={colors.primary} strokeWidth={1.5} />
+              </View>
+
+              {/* Title */}
+              <Text style={styles.heroTitle}>Pulse Coach</Text>
+
+              {/* Caption */}
+              <Text style={styles.heroCaption}>
+                Your AI health and fitness coach. Ask about training, nutrition, recovery, sleep, or anything related to your goals. Always available, always honest.
+              </Text>
+
+              {/* Quick Reply Pills */}
+              <View style={styles.heroPillsContainer}>
+                {QUICK_REPLIES.map((reply) => (
+                  <Pressable
+                    key={reply}
+                    onPress={() => sendMessage(reply)}
+                    style={({ pressed }) => [
+                      styles.heroPill,
+                      pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] },
+                    ]}
+                  >
+                    <Text style={styles.heroPillText}>{reply}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Animated.View>
+          </View>
+        ) : (
+          /* ── Active Conversation ───────────────────────────────── */
+          <>
+            <ScrollView
+              ref={scrollRef}
+              contentContainerStyle={styles.messagesContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={scrollToBottom}
+              keyboardShouldPersistTaps="handled"
+            >
+              {messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                return (
+                  <Animated.View key={msg.id} entering={FadeInDown.duration(300)}>
+                    <View
+                      style={[
+                        styles.bubbleWrapper,
+                        isUser ? styles.bubbleWrapperUser : styles.bubbleWrapperCoach,
+                      ]}
+                    >
+                      {!isUser && (
+                        <View style={styles.bubbleAvatarSmall}>
+                          <Sparkles size={12} color={colors.primary} strokeWidth={2.5} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, maxWidth: '80%' }}>
+                        <View
+                          style={[
+                            styles.bubble,
+                            isUser ? styles.userBubble : styles.coachBubble,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.bubbleText,
+                              isUser ? styles.userBubbleText : styles.coachBubbleText,
+                            ]}
+                          >
+                            {msg.content}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.timestamp,
+                            isUser ? styles.timestampUser : styles.timestampCoach,
+                          ]}
+                        >
+                          {formatTime(msg.timestamp)}
+                        </Text>
+                      </View>
+                    </View>
+                  </Animated.View>
+                );
+              })}
+
+              {isTyping && (
+                <Animated.View entering={FadeIn.duration(200)}>
+                  <View style={[styles.bubbleWrapper, styles.bubbleWrapperCoach]}>
                     <View style={styles.bubbleAvatarSmall}>
                       <Sparkles size={12} color={colors.primary} strokeWidth={2.5} />
                     </View>
-                  )}
-                  <View style={{ flex: 1, maxWidth: '80%' }}>
-                    <View
-                      style={[
-                        styles.bubble,
-                        isUser ? styles.userBubble : styles.coachBubble,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.bubbleText,
-                          isUser ? styles.userBubbleText : styles.coachBubbleText,
-                        ]}
-                      >
-                        {msg.content}
-                      </Text>
+                    <View style={[styles.bubble, styles.coachBubble, styles.typingBubble]}>
+                      <View style={styles.typingDots}>
+                        <View style={[styles.typingDot, { opacity: 0.3 }]} />
+                        <View style={[styles.typingDot, { opacity: 0.6 }]} />
+                        <View style={[styles.typingDot, { opacity: 1.0 }]} />
+                      </View>
                     </View>
-                    <Text
-                      style={[
-                        styles.timestamp,
-                        isUser ? styles.timestampUser : styles.timestampCoach,
-                      ]}
-                    >
-                      {formatTime(msg.timestamp)}
-                    </Text>
                   </View>
-                </View>
-              </Animated.View>
-            );
-          })}
-
-          {isTyping && (
-            <Animated.View entering={FadeIn.duration(200)}>
-              <View style={[styles.bubbleWrapper, styles.bubbleWrapperCoach]}>
-                <View style={styles.bubbleAvatarSmall}>
-                  <Sparkles size={12} color={colors.primary} strokeWidth={2.5} />
-                </View>
-                <View style={[styles.bubble, styles.coachBubble, styles.typingBubble]}>
-                  <View style={styles.typingDots}>
-                    <View style={[styles.typingDot, { opacity: 0.3 }]} />
-                    <View style={[styles.typingDot, { opacity: 0.6 }]} />
-                    <View style={[styles.typingDot, { opacity: 1.0 }]} />
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          )}
-        </ScrollView>
-
-        {/* ── Quick Replies ─────────────────────────────────────── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickRepliesContainer}
-          style={{ flexGrow: 0 }}
-        >
-          {QUICK_REPLIES.map((reply) => (
-            <Pressable
-              key={reply}
-              onPress={() => sendMessage(reply)}
-              style={({ pressed }) => [
-                styles.quickReplyPill,
-                pressed && styles.quickReplyPillPressed,
-              ]}
-            >
-              <Text style={styles.quickReplyText}>{reply}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+                </Animated.View>
+              )}
+            </ScrollView>
+          </>
+        )}
 
         {/* ── Input Bar ─────────────────────────────────────────── */}
         <View style={styles.inputBar}>
@@ -390,6 +401,67 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginRight: 4,
   },
+  // Empty state / hero
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 40,
+  },
+  emptyStateContent: {
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+  },
+  heroLogo: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: withOpacity(colors.primary, 0.1),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.15),
+  },
+  heroTitle: {
+    color: colors.textPrimary,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginBottom: spacing.sm,
+  },
+  heroCaption: {
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  heroPillsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  heroPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: borderRadius.full,
+    backgroundColor: withOpacity(colors.primary, 0.06),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary, 0.2),
+  },
+  heroPillText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+
   typingBubble: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -405,32 +477,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.textMuted,
   },
-  quickRepliesContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    alignItems: 'center',
-  },
-  quickReplyPill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(168,85,247,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(168,85,247,0.2)',
-    alignSelf: 'center',
-    height: 40,
-    justifyContent: 'center',
-  },
-  quickReplyPillPressed: {
-    backgroundColor: withOpacity(colors.primary, 0.2),
-  },
-  quickReplyText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: -0.1,
-  },
+  // (quick replies moved to heroPills in empty state)
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
