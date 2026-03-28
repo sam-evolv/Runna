@@ -227,6 +227,7 @@ export default function CoachTab() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.quickRepliesContainer}
+          style={{ flexGrow: 0 }}
         >
           {QUICK_REPLIES.map((reply) => (
             <Pressable
@@ -408,6 +409,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     gap: spacing.sm,
+    alignItems: 'center',
   },
   quickReplyPill: {
     paddingHorizontal: spacing.md,
@@ -416,6 +418,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(168,85,247,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(168,85,247,0.2)',
+    alignSelf: 'center',
+    height: 40,
+    justifyContent: 'center',
   },
   quickReplyPillPressed: {
     backgroundColor: withOpacity(colors.primary, 0.2),
