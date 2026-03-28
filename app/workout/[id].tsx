@@ -20,6 +20,7 @@ import {
   workoutTypeColors,
   sportColors,
 } from '@/constants/theme';
+import { Lightbulb, ChevronUp, ChevronDown } from 'lucide-react-native';
 import {
   isRunningWorkout,
   isStrengthWorkout,
@@ -590,11 +591,13 @@ function ExerciseEducation({ exerciseName }: { exerciseName: string }) {
       style={exerciseEducationStyles.container}
     >
       <View style={exerciseEducationStyles.header}>
-        <Text style={exerciseEducationStyles.headerIcon}>{'\u{1F4A1}'}</Text>
+        <Lightbulb size={14} color={colors.primary} />
         <Text style={exerciseEducationStyles.headerText}>Why this exercise?</Text>
-        <Text style={exerciseEducationStyles.chevron}>
-          {expanded ? '\u2303' : '\u2304'}
-        </Text>
+        {expanded ? (
+          <ChevronUp size={14} color={colors.primary} />
+        ) : (
+          <ChevronDown size={14} color={colors.primary} />
+        )}
       </View>
       {expanded && (
         <Animated.View entering={FadeInDown.duration(200)}>
@@ -627,18 +630,11 @@ const exerciseEducationStyles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  headerIcon: {
-    fontSize: 14,
-  },
   headerText: {
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
-  },
-  chevron: {
-    color: colors.primary,
-    fontSize: 14,
   },
   whyText: {
     color: colors.textSecondary,
@@ -1036,8 +1032,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   startButton: {
-    height: 56,
-    borderRadius: borderRadius.lg,
+    height: 52,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     ...shadows.md,

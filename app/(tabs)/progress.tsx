@@ -8,14 +8,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Flame, Trophy, TrendingUp, Activity, Clock, MapPin, Dumbbell, Brain } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
 import {
   colors,
   spacing,
   borderRadius,
+  typography,
   workoutTypeColors,
   withOpacity,
+  shadows,
 } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -29,7 +32,6 @@ interface PersonalRecord {
   exercise: string;
   value: string;
   date: string;
-  icon: string;
 }
 
 interface RecentActivity {
@@ -53,11 +55,11 @@ const MOCK_WEEK_DAYS: WeekDay[] = [
 ];
 
 const MOCK_PRS: PersonalRecord[] = [
-  { exercise: '5K Run', value: '23:42', date: 'Mar 1, 2026', icon: '\u{1F3C3}' },
-  { exercise: 'Bench Press', value: '85 kg', date: 'Feb 24, 2026', icon: '\u{1F4AA}' },
-  { exercise: 'Deadlift', value: '140 kg', date: 'Feb 20, 2026', icon: '\u{1F525}' },
-  { exercise: '10K Run', value: '51:08', date: 'Feb 15, 2026', icon: '\u{1F3C5}' },
-  { exercise: 'Squat', value: '110 kg', date: 'Feb 10, 2026', icon: '\u26A1' },
+  { exercise: '5K Run', value: '23:42', date: 'Mar 1, 2026' },
+  { exercise: 'Bench Press', value: '85 kg', date: 'Feb 24, 2026' },
+  { exercise: 'Deadlift', value: '140 kg', date: 'Feb 20, 2026' },
+  { exercise: '10K Run', value: '51:08', date: 'Feb 15, 2026' },
+  { exercise: 'Squat', value: '110 kg', date: 'Feb 10, 2026' },
 ];
 
 const MOCK_RECENT: RecentActivity[] = [
@@ -79,17 +81,14 @@ const WEEKLY_INSIGHTS = [
   {
     title: 'Sleep Impact',
     message: 'On nights you sleep 7+ hours, your RPE scores are 18% lower. Prioritise sleep before hard sessions.',
-    icon: '\u{1F4A4}',
   },
   {
     title: 'Consistency Streak',
     message: 'You have completed 12 consecutive training days. Your fitness score has improved 8% this month.',
-    icon: '\u{1F525}',
   },
   {
     title: 'Performance Trend',
     message: 'Your 5km pace has improved from 5:30/km to 5:10/km over 6 weeks. On track for sub-25.',
-    icon: '\u{1F4C8}',
   },
 ];
 
@@ -137,18 +136,21 @@ export default function ProgressScreen() {
           <Text style={styles.sectionLabel}>THIS WEEK</Text>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
+              <Activity size={18} color={colors.primary} strokeWidth={2} style={styles.statIcon} />
               <Text style={[styles.statValue, { color: colors.primary }]}>
                 {weekStats.sessions}
               </Text>
               <Text style={styles.statLabel}>Sessions</Text>
             </View>
             <View style={styles.statCard}>
+              <Clock size={18} color={colors.secondary} strokeWidth={2} style={styles.statIcon} />
               <Text style={[styles.statValue, { color: colors.secondary }]}>
                 {weekStats.hours}h
               </Text>
               <Text style={styles.statLabel}>Time</Text>
             </View>
             <View style={styles.statCard}>
+              <MapPin size={18} color="#F97316" strokeWidth={2} style={styles.statIcon} />
               <Text style={[styles.statValue, { color: '#F97316' }]}>
                 {weekStats.distance}
               </Text>
@@ -195,7 +197,7 @@ export default function ProgressScreen() {
         <Animated.View entering={FadeInDown.delay(220).duration(400)}>
           <View style={styles.insightCard}>
             <View style={styles.insightHeader}>
-              <Text style={styles.insightIcon}>{currentInsight.icon}</Text>
+              <Brain size={22} color={colors.primary} strokeWidth={2} />
               <View style={styles.insightBadge}>
                 <Text style={styles.insightBadgeText}>AI INSIGHT</Text>
               </View>
@@ -209,7 +211,9 @@ export default function ProgressScreen() {
         <Animated.View entering={FadeInDown.delay(280).duration(400)}>
           <View style={styles.streakCard}>
             <View style={styles.streakLeft}>
-              <Text style={styles.streakEmoji}>{'\u{1F525}'}</Text>
+              <View style={styles.streakIconWrap}>
+                <Flame size={24} color={colors.warning} strokeWidth={2} />
+              </View>
               <View>
                 <Text style={styles.streakTitle}>{streakDays} Day Streak</Text>
                 <Text style={styles.streakSubtitle}>
@@ -233,7 +237,7 @@ export default function ProgressScreen() {
                 ]}
               >
                 <View style={styles.prIconWrap}>
-                  <Text style={styles.prIcon}>{pr.icon}</Text>
+                  <Trophy size={18} color={colors.primary} strokeWidth={2} />
                 </View>
                 <View style={styles.prInfo}>
                   <Text style={styles.prExercise}>{pr.exercise}</Text>
@@ -325,18 +329,18 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   sectionLabel: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
     marginBottom: spacing.sm,
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
 
   // Stats row
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   statCard: {
     flex: 1,
@@ -348,13 +352,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
   },
+  statIcon: {
+    marginBottom: spacing.xs,
+  },
   statValue: {
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     fontWeight: '500',
     marginTop: 4,
@@ -366,7 +374,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: 20,
     paddingTop: spacing.lg,
   },
   chartBarsContainer: {
@@ -390,7 +398,7 @@ const styles = StyleSheet.create({
     minHeight: 6,
   },
   barLabel: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 11,
     fontWeight: '600',
     marginTop: spacing.sm,
@@ -398,21 +406,18 @@ const styles = StyleSheet.create({
 
   // AI Insight
   insightCard: {
-    backgroundColor: withOpacity(colors.primary, 0.06),
+    backgroundColor: 'rgba(168,85,247,0.06)',
     borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.15),
+    borderColor: 'rgba(168,85,247,0.15)',
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
+    padding: 20,
+    marginTop: spacing.xl,
   },
   insightHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.sm,
-  },
-  insightIcon: {
-    fontSize: 24,
   },
   insightBadge: {
     backgroundColor: withOpacity(colors.primary, 0.15),
@@ -442,24 +447,30 @@ const styles = StyleSheet.create({
   streakCard: {
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: withOpacity('#F97316', 0.2),
+    borderColor: withOpacity(colors.warning, 0.2),
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginTop: spacing.lg,
+    padding: 20,
+    marginTop: spacing.md,
   },
   streakLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-  streakEmoji: {
-    fontSize: 32,
+  streakIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: withOpacity(colors.warning, 0.12),
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   streakTitle: {
     color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.3,
+    fontVariant: ['tabular-nums'],
   },
   streakSubtitle: {
     color: colors.textSecondary,
@@ -478,7 +489,7 @@ const styles = StyleSheet.create({
   prRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
+    padding: 20,
   },
   prRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -493,9 +504,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  prIcon: {
-    fontSize: 18,
-  },
   prInfo: {
     flex: 1,
   },
@@ -505,7 +513,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   prDate: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     marginTop: 2,
   },
@@ -513,6 +521,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 17,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
 
   // Training Load
@@ -521,7 +530,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: 20,
     gap: spacing.md,
   },
   loadRow: {
@@ -551,6 +560,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     width: 40,
     textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
 
   // Recent Activities
@@ -559,8 +569,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    padding: 20,
+    marginBottom: spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -585,7 +595,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activityDate: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     marginTop: 2,
   },
@@ -596,9 +606,10 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   activityDetail: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     marginTop: 2,
   },

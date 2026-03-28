@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     ...shadows.glow(colors.primary),
   },
   aceAvatarText: {
-    color: '#050505',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '700',
   },

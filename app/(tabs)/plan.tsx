@@ -32,6 +32,7 @@ import {
   withOpacity,
   shadows,
 } from '@/constants/theme';
+import { ChevronLeft, ChevronRight, Check, Leaf } from 'lucide-react-native';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 type ViewMode = 'month' | 'week';

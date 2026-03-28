@@ -1,24 +1,30 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
-  Platform,
   TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import {
-  colors,
-  spacing,
-  borderRadius,
-  withOpacity,
-  shadows,
-  typography,
-} from '@/constants/theme';
+  Smile,
+  Frown,
+  Meh,
+  Moon,
+  BedDouble,
+  AlertCircle,
+  Zap,
+  ThumbsUp,
+  ThumbsDown,
+  HelpCircle,
+  TrendingUp,
+  Minus,
+  Brain,
+} from 'lucide-react-native';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 type CheckinType = 'pre_workout' | 'post_workout';
@@ -28,41 +34,40 @@ type Step = 'mood' | 'sleep' | 'soreness' | 'ai_response' | 'rpe' | 'reflection'
 interface MoodOption {
   value: MoodLevel;
   label: string;
-  emoji: string;
   color: string;
 }
 
 interface SorenessArea {
   id: string;
   label: string;
-  emoji: string;
+  iconColor: string;
 }
 
 const MOOD_OPTIONS: MoodOption[] = [
-  { value: 5, label: 'Great', emoji: '\u{1F525}', color: colors.success },
-  { value: 4, label: 'Good', emoji: '\u{1F4AA}', color: '#3B82F6' },
-  { value: 3, label: 'Okay', emoji: '\u{1F610}', color: '#FBBF24' },
-  { value: 2, label: 'Tired', emoji: '\u{1F634}', color: '#F97316' },
-  { value: 1, label: 'Rough', emoji: '\u{1F62B}', color: colors.error },
+  { value: 5, label: 'Great', color: '#34D399' },
+  { value: 4, label: 'Good', color: '#3B82F6' },
+  { value: 3, label: 'Okay', color: '#FBBF24' },
+  { value: 2, label: 'Tired', color: '#F97316' },
+  { value: 1, label: 'Rough', color: '#F87171' },
 ];
 
 const SLEEP_OPTIONS: MoodOption[] = [
-  { value: 5, label: '8+ hours', emoji: '\u{1F31F}', color: colors.success },
-  { value: 4, label: '7 hours', emoji: '\u{1F4A4}', color: '#3B82F6' },
-  { value: 3, label: '6 hours', emoji: '\u{1F634}', color: '#FBBF24' },
-  { value: 2, label: '5 hours', emoji: '\u{1F611}', color: '#F97316' },
-  { value: 1, label: '< 5 hours', emoji: '\u{1F62B}', color: colors.error },
+  { value: 5, label: '8+ hours', color: '#34D399' },
+  { value: 4, label: '7 hours', color: '#3B82F6' },
+  { value: 3, label: '6 hours', color: '#FBBF24' },
+  { value: 2, label: '5 hours', color: '#F97316' },
+  { value: 1, label: '< 5 hours', color: '#F87171' },
 ];
 
 const SORENESS_AREAS: SorenessArea[] = [
-  { id: 'legs', label: 'Legs', emoji: '\u{1F9B5}' },
-  { id: 'back', label: 'Back', emoji: '\u{1F4AA}' },
-  { id: 'shoulders', label: 'Shoulders', emoji: '\u{1F937}' },
-  { id: 'chest', label: 'Chest', emoji: '\u{1F4AA}' },
-  { id: 'core', label: 'Core', emoji: '\u{1F525}' },
-  { id: 'arms', label: 'Arms', emoji: '\u{1F4AA}' },
-  { id: 'knees', label: 'Knees', emoji: '\u26A0\uFE0F' },
-  { id: 'none', label: 'No soreness', emoji: '\u2705' },
+  { id: 'legs', label: 'Legs', iconColor: '#F97316' },
+  { id: 'back', label: 'Back', iconColor: '#EF4444' },
+  { id: 'shoulders', label: 'Shoulders', iconColor: '#F59E0B' },
+  { id: 'chest', label: 'Chest', iconColor: '#3B82F6' },
+  { id: 'core', label: 'Core', iconColor: '#A855F7' },
+  { id: 'arms', label: 'Arms', iconColor: '#8B5CF6' },
+  { id: 'knees', label: 'Knees', iconColor: '#F87171' },
+  { id: 'none', label: 'No soreness', iconColor: '#34D399' },
 ];
 
 const RPE_SCALE = [
@@ -82,13 +87,11 @@ const RPE_SCALE = [
 function getAIResponse(mood: MoodLevel, sleep: MoodLevel, soreness: string[]): {
   action: string;
   explanation: string;
-  emoji: string;
 } {
   if (mood >= 4 && sleep >= 4) {
     return {
       action: 'proceed',
       explanation: "Looking strong! Your energy and sleep are solid. Let's push today — your body is ready for it. Stick with the planned session.",
-      emoji: '\u{1F525}',
     };
   }
   if (mood === 3 || sleep === 3) {
@@ -98,20 +101,17 @@ function getAIResponse(mood: MoodLevel, sleep: MoodLevel, soreness: string[]): {
       explanation: hasSoreness
         ? `Not your best day, and I see soreness in your ${soreness.join(' and ')}. I've dialed back intensity by 15% and adjusted exercises to avoid those areas. We'll make up the volume later this week.`
         : "Not your best day — I've reduced the intensity by 10-15% but kept the structure. Smart training means listening to your body. You'll still get quality work done.",
-      emoji: '\u{1F4AA}',
     };
   }
   if (mood === 2) {
     return {
       action: 'swap',
       explanation: "Recovery is part of the process. I've swapped today for a lighter session — some mobility work and easy movement. We'll redistribute the hard work across the rest of your week. Trust the process.",
-      emoji: '\u{1F9D8}',
     };
   }
   return {
     action: 'rest',
     explanation: "Rest day. Your body is telling you something important — listen to it. Take today completely off. A 15-minute walk and some light stretching is all I'd suggest. We'll pick back up when you're ready.",
-    emoji: '\u{1F33F}',
   };
 }
 
@@ -126,6 +126,15 @@ function getPostWorkoutFeedback(rpe: number, couldPushHarder: boolean | null): s
     return "Good session, but sounds like you had more in the tank. I'll bump up the intensity slightly for next time — adding either more weight, more reps, or faster paces. Let's see what you're capable of!";
   }
   return "Nice work getting the session done! Every completed workout builds your fitness base. Focus on recovery and we'll push a bit more next time.";
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+function getRpeColor(value: number): string {
+  if (value <= 3) return '#34D399';
+  if (value <= 5) return '#FBBF24';
+  if (value <= 7) return '#F97316';
+  return '#F87171';
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -231,7 +240,7 @@ export default function CheckinScreen() {
                     pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
                   ]}
                 >
-                  <Text style={styles.moodEmoji}>{option.emoji}</Text>
+                  <View style={[styles.moodCircle, { backgroundColor: option.color }]} />
                   <Text style={[styles.moodLabel, { color: option.color }]}>
                     {option.label}
                   </Text>
@@ -258,7 +267,7 @@ export default function CheckinScreen() {
                     pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
                   ]}
                 >
-                  <Text style={styles.moodEmoji}>{option.emoji}</Text>
+                  <View style={[styles.moodCircle, { backgroundColor: option.color }]} />
                   <Text style={[styles.moodLabel, { color: option.color }]}>
                     {option.label}
                   </Text>
@@ -287,7 +296,10 @@ export default function CheckinScreen() {
                       isSelected && styles.sorenessChipSelected,
                     ]}
                   >
-                    <Text style={styles.sorenessEmoji}>{area.emoji}</Text>
+                    <AlertCircle
+                      size={16}
+                      color={isSelected ? '#A855F7' : area.iconColor}
+                    />
                     <Text
                       style={[
                         styles.sorenessLabel,
@@ -316,8 +328,8 @@ export default function CheckinScreen() {
         {step === 'ai_response' && aiResponse && (
           <Animated.View entering={FadeInDown.duration(400)}>
             <View style={styles.aiResponseCard}>
-              <Text style={styles.aiResponseEmoji}>{aiResponse.emoji}</Text>
               <View style={styles.aiResponseBadge}>
+                <Brain size={14} color="#A855F7" />
                 <Text style={styles.aiResponseBadgeText}>AI COACH</Text>
               </View>
               <Text style={styles.aiResponseText}>{aiResponse.explanation}</Text>
@@ -345,10 +357,7 @@ export default function CheckinScreen() {
             </Text>
             <View style={styles.rpeGrid}>
               {RPE_SCALE.map((item) => {
-                const rpeColor =
-                  item.value <= 3 ? colors.success :
-                  item.value <= 6 ? '#FBBF24' :
-                  item.value <= 8 ? '#F97316' : colors.error;
+                const rpeColor = getRpeColor(item.value);
                 return (
                   <Pressable
                     key={item.value}
@@ -358,10 +367,8 @@ export default function CheckinScreen() {
                       pressed && { opacity: 0.8 },
                     ]}
                   >
-                    <View style={[styles.rpeCircle, { borderColor: rpeColor }]}>
-                      <Text style={[styles.rpeNumber, { color: rpeColor }]}>
-                        {item.value}
-                      </Text>
+                    <View style={[styles.rpeCircle, { backgroundColor: rpeColor }]}>
+                      <Text style={styles.rpeNumber}>{item.value}</Text>
                     </View>
                     <Text style={styles.rpeLabel}>{item.label}</Text>
                   </Pressable>
@@ -431,7 +438,7 @@ export default function CheckinScreen() {
             <TextInput
               style={styles.notesInput}
               placeholder="Optional — any pain, discomfort, or thoughts..."
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor="#6B7280"
               value={postNotes}
               onChangeText={setPostNotes}
               multiline
@@ -454,17 +461,15 @@ export default function CheckinScreen() {
         {step === 'feedback' && rpe !== null && (
           <Animated.View entering={FadeInDown.duration(400)}>
             <View style={styles.aiResponseCard}>
-              <Text style={styles.aiResponseEmoji}>
-                {rpe >= 7 ? '\u{1F525}' : '\u{1F4AA}'}
-              </Text>
               <View style={styles.aiResponseBadge}>
+                <Brain size={14} color="#A855F7" />
                 <Text style={styles.aiResponseBadgeText}>AI COACH</Text>
               </View>
               <Text style={styles.aiResponseText}>
                 {getPostWorkoutFeedback(rpe, couldPushHarder)}
               </Text>
               {feelingStronger === 'Plateau' && (
-                <Text style={[styles.aiResponseText, { marginTop: spacing.md }]}>
+                <Text style={[styles.aiResponseText, { marginTop: 16 }]}>
                   You mentioned feeling like you've plateaued. This is normal — adaptation
                   isn't always linear. I'll introduce some variation in your next cycle to
                   break through. Trust the process.
@@ -491,7 +496,7 @@ export default function CheckinScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
   progressBar: {
     height: 3,
@@ -499,61 +504,65 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: '#A855F7',
     borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
   closeText: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 16,
     fontWeight: '600',
   },
   headerTitle: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 16,
     fontWeight: '700',
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 24,
     paddingBottom: 100,
-    paddingTop: spacing.xl,
+    paddingTop: 24,
   },
 
   // Questions
   questionText: {
-    ...typography.largeTitle,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
+    color: '#F1F1F6',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   questionSubtext: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
+    color: '#9CA3AF',
+    fontSize: 16,
     lineHeight: 24,
+    marginBottom: 32,
   },
 
-  // Mood cards
+  // Mood cards with colored circles
   optionsGrid: {
-    gap: spacing.sm,
+    gap: 12,
   },
   moodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: 16,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
+    borderRadius: 16,
+    padding: 20,
   },
-  moodEmoji: {
-    fontSize: 28,
+  moodCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   moodLabel: {
     fontSize: 18,
@@ -564,80 +573,75 @@ const styles = StyleSheet.create({
   sorenessGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.xl,
+    gap: 12,
+    marginBottom: 32,
   },
   sorenessChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: borderRadius.full,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
   sorenessChipSelected: {
-    backgroundColor: withOpacity(colors.primary, 0.12),
-    borderColor: withOpacity(colors.primary, 0.3),
-  },
-  sorenessEmoji: {
-    fontSize: 16,
+    backgroundColor: 'rgba(168,85,247,0.06)',
+    borderColor: 'rgba(168,85,247,0.2)',
   },
   sorenessLabel: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 14,
     fontWeight: '600',
   },
   sorenessLabelSelected: {
-    color: colors.primary,
+    color: '#A855F7',
   },
 
   // Continue button
   continueButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    height: 56,
+    backgroundColor: '#A855F7',
+    borderRadius: 12,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: spacing.lg,
-    ...shadows.glow(colors.primary),
+    marginTop: 24,
   },
   continueButtonText: {
-    color: '#050505',
+    color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
   },
 
   // AI Response
   aiResponseCard: {
-    backgroundColor: withOpacity(colors.primary, 0.06),
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.15),
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
   },
-  aiResponseEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
   aiResponseBadge: {
-    backgroundColor: withOpacity(colors.primary, 0.15),
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(168,85,247,0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginBottom: 16,
   },
   aiResponseBadgeText: {
-    color: colors.primary,
+    color: '#A855F7',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
   },
   aiResponseText: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
@@ -645,79 +649,79 @@ const styles = StyleSheet.create({
 
   // RPE
   rpeGrid: {
-    gap: spacing.sm,
+    gap: 12,
   },
   rpeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: 16,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: 12,
+    padding: 16,
   },
   rpeCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rpeNumber: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
   rpeLabel: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 15,
     fontWeight: '500',
   },
 
   // Reflection
   reflectionQuestion: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 17,
     fontWeight: '600',
-    marginBottom: spacing.sm,
-    marginTop: spacing.lg,
+    marginBottom: 8,
+    marginTop: 24,
   },
   yesNoRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 12,
   },
   yesNoButton: {
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: 16,
     alignItems: 'center',
-    borderRadius: borderRadius.md,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
   yesNoButtonSelected: {
-    backgroundColor: withOpacity(colors.primary, 0.12),
-    borderColor: withOpacity(colors.primary, 0.3),
+    backgroundColor: 'rgba(168,85,247,0.06)',
+    borderColor: 'rgba(168,85,247,0.2)',
   },
   yesNoText: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 15,
     fontWeight: '600',
   },
   yesNoTextSelected: {
-    color: colors.primary,
+    color: '#A855F7',
   },
   notesInput: {
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    color: colors.textPrimary,
+    borderRadius: 12,
+    padding: 16,
+    color: '#F1F1F6',
     fontSize: 15,
     minHeight: 80,
     textAlignVertical: 'top',
-    marginTop: spacing.sm,
+    marginTop: 8,
   },
 });

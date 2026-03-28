@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { colors, spacing, borderRadius, withOpacity, shadows } from '@/constants/theme';
+import { MessageCircle, Send, Sparkles } from 'lucide-react-native';
+import { colors, spacing, borderRadius, typography, withOpacity, shadows } from '@/constants/theme';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 interface Message {
@@ -133,7 +134,7 @@ export default function CoachTab() {
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.coachAvatar}>
-            <Text style={styles.coachAvatarText}>P</Text>
+            <Sparkles size={22} color={colors.white} strokeWidth={2} />
           </View>
           <View>
             <Text style={styles.headerTitle}>Pulse Coach</Text>
@@ -170,7 +171,7 @@ export default function CoachTab() {
                 >
                   {!isUser && (
                     <View style={styles.bubbleAvatarSmall}>
-                      <Text style={styles.bubbleAvatarSmallText}>P</Text>
+                      <Sparkles size={12} color={colors.primary} strokeWidth={2.5} />
                     </View>
                   )}
                   <View style={{ flex: 1, maxWidth: '80%' }}>
@@ -207,7 +208,7 @@ export default function CoachTab() {
             <Animated.View entering={FadeIn.duration(200)}>
               <View style={[styles.bubbleWrapper, styles.bubbleWrapperCoach]}>
                 <View style={styles.bubbleAvatarSmall}>
-                  <Text style={styles.bubbleAvatarSmallText}>P</Text>
+                  <Sparkles size={12} color={colors.primary} strokeWidth={2.5} />
                 </View>
                 <View style={[styles.bubble, styles.coachBubble, styles.typingBubble]}>
                   <View style={styles.typingDots}>
@@ -262,7 +263,7 @@ export default function CoachTab() {
               pressed && inputText.trim() ? styles.sendButtonPressed : null,
             ]}
           >
-            <Text style={styles.sendArrow}>{'\u2191'}</Text>
+            <Send size={18} color={colors.white} strokeWidth={2.5} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -299,11 +300,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadows.glow(colors.primary),
   },
-  coachAvatarText: {
-    color: '#050505',
-    fontSize: 20,
-    fontWeight: '700',
-  },
   headerTitle: {
     color: colors.textPrimary,
     fontSize: 18,
@@ -320,10 +316,10 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.success,
+    backgroundColor: '#34D399',
   },
   headerSubtitle: {
-    color: colors.success,
+    color: '#34D399',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -356,18 +352,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  bubbleAvatarSmallText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   bubble: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    borderRadius: 20,
+    borderRadius: borderRadius.lg,
   },
   coachBubble: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderBottomLeftRadius: 6,
   },
   userBubble: {
@@ -384,7 +375,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   userBubbleText: {
-    color: '#050505',
+    color: colors.white,
   },
   timestamp: {
     fontSize: 11,
@@ -422,9 +413,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderRadius: borderRadius.full,
-    backgroundColor: withOpacity(colors.primary, 0.08),
+    backgroundColor: 'rgba(168,85,247,0.06)',
     borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.2),
+    borderColor: 'rgba(168,85,247,0.2)',
   },
   quickReplyPillPressed: {
     backgroundColor: withOpacity(colors.primary, 0.2),
@@ -447,7 +438,7 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: '#111118',
     borderRadius: borderRadius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
@@ -458,9 +449,9 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -471,11 +462,5 @@ const styles = StyleSheet.create({
   },
   sendButtonPressed: {
     opacity: 0.8,
-  },
-  sendArrow: {
-    color: '#050505',
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: -1,
   },
 });

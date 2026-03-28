@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, spacing, animation } from '@/constants/theme';
+import { colors, animation } from '@/constants/theme';
+import { Zap, CalendarDays, TrendingUp, MessageCircle, User } from 'lucide-react-native';
 
 export default function TabsLayout() {
   return (
@@ -15,7 +16,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#4B5563',
+        tabBarInactiveTintColor: '#6B7280',
         tabBarShowLabel: false,
       }}
     >
@@ -24,7 +25,9 @@ export default function TabsLayout() {
         options={{
           title: 'Today',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\u26A1'} label="Today" color={color} focused={focused} />
+            <TabIcon focused={focused}>
+              <Zap size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </TabIcon>
           ),
         }}
       />
@@ -33,7 +36,9 @@ export default function TabsLayout() {
         options={{
           title: 'Plan',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDCC5'} label="Plan" color={color} focused={focused} />
+            <TabIcon focused={focused}>
+              <CalendarDays size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </TabIcon>
           ),
         }}
       />
@@ -42,7 +47,9 @@ export default function TabsLayout() {
         options={{
           title: 'Progress',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDCCA'} label="Progress" color={color} focused={focused} />
+            <TabIcon focused={focused}>
+              <TrendingUp size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </TabIcon>
           ),
         }}
       />
@@ -51,7 +58,9 @@ export default function TabsLayout() {
         options={{
           title: 'Coach',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83E\uDDE0'} label="Coach" color={color} focused={focused} />
+            <TabIcon focused={focused}>
+              <MessageCircle size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </TabIcon>
           ),
         }}
       />
@@ -60,40 +69,33 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon icon={'\uD83D\uDC64'} label="Profile" color={color} focused={focused} />
+            <TabIcon focused={focused}>
+              <User size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </TabIcon>
           ),
         }}
       />
-      {/* Hide old activity tab */}
       <Tabs.Screen
         name="activity"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
 }
 
 function TabIcon({
-  icon,
-  label,
-  color,
   focused,
+  children,
 }: {
-  icon: string;
-  label: string;
-  color: string;
   focused: boolean;
+  children: React.ReactNode;
 }) {
   const scale = useSharedValue(1);
   const dotScale = useSharedValue(focused ? 1 : 0);
-  const dotOpacity = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
-    scale.value = withSpring(focused ? 1.15 : 1, animation.spring.snappy);
+    scale.value = withSpring(focused ? 1.1 : 1, animation.spring.snappy);
     dotScale.value = withSpring(focused ? 1 : 0, animation.spring.snappy);
-    dotOpacity.value = withSpring(focused ? 1 : 0, animation.spring.snappy);
   }, [focused]);
 
   const iconAnimStyle = useAnimatedStyle(() => ({
@@ -101,34 +103,15 @@ function TabIcon({
   }));
 
   const dotAnimStyle = useAnimatedStyle(() => ({
-    opacity: dotOpacity.value,
+    opacity: dotScale.value,
     transform: [{ scale: dotScale.value }],
   }));
 
   return (
     <View style={styles.tabContainer}>
       <Animated.View style={iconAnimStyle}>
-        <Text
-          style={[
-            styles.tabEmoji,
-            { opacity: focused ? 1 : 0.4 },
-          ]}
-        >
-          {icon}
-        </Text>
+        {children}
       </Animated.View>
-      <Text
-        style={[
-          styles.tabLabel,
-          {
-            color,
-            fontWeight: focused ? '600' : '400',
-            opacity: focused ? 1 : 0.6,
-          },
-        ]}
-      >
-        {label}
-      </Text>
       <Animated.View style={[styles.activeDot, dotAnimStyle]} />
     </View>
   );
@@ -136,35 +119,25 @@ function TabIcon({
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#050505',
+    backgroundColor: '#0A0A0F',
     borderTopColor: 'rgba(255,255,255,0.06)',
     borderTopWidth: 1,
-    height: 88,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
+    height: 80,
+    paddingTop: 12,
+    paddingBottom: 20,
     elevation: 0,
   },
   tabContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    minWidth: 52,
-    paddingTop: 2,
-  },
-  tabEmoji: {
-    fontSize: 20,
-    textAlign: 'center',
-  },
-  tabLabel: {
-    fontSize: 9,
-    letterSpacing: 0.3,
-    textAlign: 'center',
+    gap: 6,
+    minWidth: 44,
+    minHeight: 44,
   },
   activeDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.primary,
-    marginTop: 1,
   },
 });

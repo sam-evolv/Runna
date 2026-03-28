@@ -12,28 +12,44 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import {
+  User,
+  Settings,
+  Link2,
+  Bell,
+  Scale,
+  LogOut,
+  ChevronRight,
+  Heart,
+  Watch,
+  Activity,
+} from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
-import {
-  colors,
-  spacing,
-  borderRadius,
-  withOpacity,
-  shadows,
-} from '@/constants/theme';
 
 // ─── Connected Services ─────────────────────────────────────────────────────────
 interface ConnectedService {
   name: string;
-  icon: string;
+  icon: 'heart' | 'watch' | 'activity';
   description: string;
 }
 
 const SERVICES: ConnectedService[] = [
-  { name: 'Apple Health', icon: '\u2764\uFE0F', description: 'Sync workouts & health data' },
-  { name: 'Garmin Connect', icon: '\u231A', description: 'Import runs & activities' },
-  { name: 'Strava', icon: '\u{1F6B4}', description: 'Share activities & compete' },
+  { name: 'Apple Health', icon: 'heart', description: 'Sync workouts & health data' },
+  { name: 'Garmin Connect', icon: 'watch', description: 'Import runs & activities' },
+  { name: 'Strava', icon: 'activity', description: 'Share activities & compete' },
 ];
+
+function ServiceIcon({ type, size, color }: { type: ConnectedService['icon']; size: number; color: string }) {
+  switch (type) {
+    case 'heart':
+      return <Heart size={size} color={color} />;
+    case 'watch':
+      return <Watch size={size} color={color} />;
+    case 'activity':
+      return <Activity size={size} color={color} />;
+  }
+}
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
@@ -52,7 +68,6 @@ export default function ProfileScreen() {
   const displayName =
     (user as { full_name?: string })?.full_name || 'Demo Athlete';
   const displayEmail = user?.email || 'demo@pulse.app';
-  const initial = displayName[0]?.toUpperCase() || '?';
 
   const goalType = goal
     ? (goal.goal_subtype || goal.goal_type || '')
@@ -99,7 +114,7 @@ export default function ProfileScreen() {
           <View style={styles.profileCard}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarLetter}>{initial}</Text>
+                <User size={36} color="#FFFFFF" />
               </View>
             </View>
             <Text style={styles.userName}>{displayName}</Text>
@@ -146,7 +161,7 @@ export default function ProfileScreen() {
                 ]}
               >
                 <View style={styles.serviceIconWrap}>
-                  <Text style={styles.serviceIcon}>{service.icon}</Text>
+                  <ServiceIcon type={service.icon} size={20} color="#A855F7" />
                 </View>
                 <View style={styles.serviceInfo}>
                   <Text style={styles.serviceName}>{service.name}</Text>
@@ -229,11 +244,11 @@ export default function ProfileScreen() {
                 onValueChange={setNotificationsEnabled}
                 trackColor={{
                   false: 'rgba(255,255,255,0.08)',
-                  true: withOpacity(colors.primary, 0.35),
+                  true: 'rgba(168,85,247,0.35)',
                 }}
                 thumbColor={
                   notificationsEnabled
-                    ? colors.primary
+                    ? '#A855F7'
                     : 'rgba(255,255,255,0.3)'
                 }
               />
@@ -250,6 +265,7 @@ export default function ProfileScreen() {
               pressed && styles.signOutButtonPressed,
             ]}
           >
+            <LogOut size={18} color="#F87171" style={{ marginRight: 8 }} />
             <Text style={styles.signOutText}>Sign Out</Text>
           </Pressable>
         </Animated.View>
@@ -267,73 +283,72 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#050505',
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 16,
   },
   largeTitle: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 34,
     fontWeight: '700',
     letterSpacing: -0.5,
   },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 24,
     paddingBottom: 120,
   },
 
   // Profile card
   profileCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
   avatarOuter: {
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary,
+    backgroundColor: '#A855F7',
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.glow(colors.primary),
-  },
-  avatarLetter: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '700',
+    shadowColor: '#A855F7',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   userName: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   userEmail: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 14,
     marginTop: 4,
   },
   goalBadge: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
+    marginTop: 16,
+    paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: withOpacity(colors.primary, 0.1),
-    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(168,85,247,0.06)',
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.2),
+    borderColor: 'rgba(168,85,247,0.2)',
   },
   goalBadgeText: {
-    color: colors.primary,
+    color: '#A855F7',
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -341,12 +356,12 @@ const styles = StyleSheet.create({
 
   // Plan Progress
   progressCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 32,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -354,105 +369,102 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressTitle: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 16,
     fontWeight: '700',
   },
   progressPercent: {
-    color: colors.primary,
+    color: '#A855F7',
     fontSize: 16,
     fontWeight: '700',
   },
   progressPlanName: {
-    color: colors.textSecondary,
+    color: '#9CA3AF',
     fontSize: 14,
     marginTop: 4,
   },
   progressWeekText: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 13,
     marginTop: 2,
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
   progressBarTrack: {
     height: 6,
-    backgroundColor: withOpacity(colors.textMuted, 0.12),
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: '#A855F7',
     borderRadius: 3,
   },
 
   // Section label
   sectionLabel: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
-    marginBottom: spacing.sm,
+    marginBottom: 8,
   },
 
   // Section card
   sectionCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 32,
   },
 
   // Connected Services
   serviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: 16,
   },
   serviceRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   serviceIconWrap: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: withOpacity(colors.primary, 0.08),
+    backgroundColor: 'rgba(168,85,247,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  serviceIcon: {
-    fontSize: 20,
+    marginRight: 16,
   },
   serviceInfo: {
     flex: 1,
   },
   serviceName: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 15,
     fontWeight: '600',
   },
   serviceDesc: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     marginTop: 2,
   },
   connectButton: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: borderRadius.full,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: withOpacity(colors.primary, 0.3),
+    borderColor: 'rgba(168,85,247,0.3)',
     backgroundColor: 'transparent',
   },
   connectButtonPressed: {
-    backgroundColor: withOpacity(colors.primary, 0.1),
+    backgroundColor: 'rgba(168,85,247,0.1)',
   },
   connectButtonText: {
-    color: colors.primary,
+    color: '#A855F7',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -462,47 +474,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: 8,
   },
   settingInfo: {
     flex: 1,
-    marginRight: spacing.md,
+    marginRight: 16,
   },
   settingLabel: {
-    color: colors.textPrimary,
+    color: '#F1F1F6',
     fontSize: 15,
     fontWeight: '600',
   },
   settingDesc: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     marginTop: 2,
   },
   settingDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    marginVertical: spacing.xs,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginVertical: 4,
   },
 
   // Unit toggle pills
   unitToggle: {
     flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.full,
+    backgroundColor: '#0A0A0F',
+    borderRadius: 999,
     padding: 2,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   unitPill: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
     paddingVertical: 6,
-    borderRadius: borderRadius.full,
+    borderRadius: 999,
   },
   unitPillActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#A855F7',
   },
   unitPillText: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -512,28 +524,30 @@ const styles = StyleSheet.create({
 
   // Sign Out
   signOutButton: {
+    flexDirection: 'row',
     borderWidth: 1,
-    borderColor: withOpacity(colors.error, 0.4),
-    borderRadius: borderRadius.lg,
+    borderColor: 'rgba(248,113,113,0.4)',
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    marginTop: 8,
   },
   signOutButtonPressed: {
-    backgroundColor: withOpacity(colors.error, 0.08),
+    backgroundColor: 'rgba(248,113,113,0.08)',
   },
   signOutText: {
-    color: colors.error,
+    color: '#F87171',
     fontSize: 16,
     fontWeight: '600',
   },
 
   // Version
   version: {
-    color: colors.textMuted,
+    color: '#6B7280',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    marginTop: 24,
+    marginBottom: 16,
   },
 });
