@@ -409,6 +409,9 @@ function repairJSON(text: string): string {
   s = s.trim();
   // Remove trailing commas before } or ]
   s = s.replace(/,\s*([}\]])/g, '$1');
+  // Fix missing commas between properties (the #1 LLM JSON error)
+  // Matches: }\n" or ]\n" or "value"\n" or number\n" — inserts comma
+  s = s.replace(/([}\]"0-9])\s*\n\s*"/g, '$1,"');
   // If JSON is truncated (more { than }), find the last complete top-level object
   let braceCount = 0;
   let lastValidEnd = -1;
