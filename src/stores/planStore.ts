@@ -153,7 +153,7 @@ export const usePlanStore = create<PlanState>((set, get) => ({
             progression_notes: aiPlan.progression_notes,
           },
           status: 'active',
-          ai_model: 'claude-sonnet-4-20250514',
+          ai_model: 'meta/llama-3.3-70b-instruct',
         })
         .select()
         .single();

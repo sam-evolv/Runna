@@ -322,7 +322,9 @@ ${stats.gym_access ? '- Has gym access' : '- No gym access (home/bodyweight only
 ${specificGuidelines}
 
 GENERAL RULES FOR ALL PLANS:
-- Plan should be 4-16 weeks depending on goal and target_date
+- CRITICAL: Generate ONLY Week 1 workouts in detail. Include full plan metadata (name, philosophy, total_weeks, progression_notes) but ONLY output the first week's workouts. Future weeks are generated on-demand as the user progresses. This keeps the response size manageable.
+- Keep total response under 4000 tokens.
+- Plan should be 4-16 weeks depending on goal and target_date (but only Week 1 workouts in the response)
 - Each week should have workouts ONLY on the available days specified
 - Include rest days on non-training days
 - Be extremely specific with paces, weights, distances, times — never be vague
@@ -332,15 +334,16 @@ GENERAL RULES FOR ALL PLANS:
 - Every workout must include cool-down guidance (in notes or as a segment)
 - Progressive overload and periodization must be evident across the weeks
 
-RESPONSE FORMAT (strict JSON — no other output):
+RESPONSE FORMAT (strict JSON — no other output, keep under 4000 tokens):
 {
   "plan_name": "string - catchy plan name",
   "description": "string - 1-2 sentence plan overview",
-  "total_weeks": number,
+  "total_weeks": number (total plan length, e.g. 5 for 4+1 deload),
   "philosophy": "string - training philosophy for this plan",
   "key_sessions": ["string array - the 2-3 most important session types"],
-  "progression_notes": "string - how the plan progresses over time",
+  "progression_notes": "string - how the plan progresses week by week including RIR targets",
   "weeks": [
+    // ONLY ONE WEEK (Week 1) — future weeks generated on demand
     {
       "week_number": number,
       "theme": "string - e.g. 'Base Building', 'Hypertrophy Block 1', 'Speed Development', 'Deload', 'Taper'",
@@ -423,7 +426,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: NVIDIA_MODEL,
-        max_tokens: 16384,
+        max_tokens: 4096,
+        temperature: 0.7,
         messages: [
           {
             role: 'system',
@@ -431,7 +435,7 @@ serve(async (req) => {
           },
           {
             role: 'user',
-            content: 'Generate the training plan now. Respond with JSON only.',
+            content: 'Generate the training plan now. Include full plan metadata but ONLY Week 1 workouts in detail. Respond with valid JSON only — no markdown, no explanation.',
           },
         ],
       }),
