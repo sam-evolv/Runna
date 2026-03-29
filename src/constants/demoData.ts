@@ -37,7 +37,7 @@ export const DEMO_WORKOUTS: Workout[] = [
     created_at: makeDemoDate(-14),
   },
 
-  // ── Tomorrow: Upper Body (Chest + Triceps) ───────────────────────────────
+  // ── Tomorrow: Upper Power (PHUL Day 1) ───────────────────────────────
   {
     id: 'demo-2',
     plan_id: 'demo-plan',

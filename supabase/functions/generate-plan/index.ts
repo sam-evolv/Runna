@@ -107,9 +107,15 @@ Each running workout must include a "segments" array with objects containing:
       specificGuidelines = `
 STRENGTH-SPECIFIC RULES:
 
+SPLIT STRUCTURE (mandatory - use PHUL: Power Upper, Power Lower, Hypertrophy Upper, Hypertrophy Lower):
+- 4-day split recommended: Upper Strength, Lower Strength, Upper Hypertrophy, Lower Hypertrophy
+- Power/Strength days: 7-8 exercises, 18-22 working sets, heavy compounds at RPE 8-9, 3-5 min rest
+- Hypertrophy days: 8-10 exercises, 20-24 working sets, moderate loads at RPE 7-8, 2 min rest, more isolation and supersets
+- If user has only 3 available days: Upper, Lower, Full Body
+- If user has 5-6 days: Push/Pull/Legs x2 or PHUL + extra day
+
 SESSION STRUCTURE (mandatory):
 - 6-10 exercises per session
-- Use paired muscle group splits: Chest + Triceps, Back + Biceps, Shoulders + Arms, Legs (Quads + Hams + Glutes + Calves)
 - Compound movements FIRST, then isolation movements
 - Hit each muscle from multiple angles: e.g., for chest: flat press + incline press + flyes; for back: rows + pulldowns + face pulls
 - Include warm-up sets before every compound lift (typically 2-3 progressively heavier warm-up sets)
@@ -148,9 +154,31 @@ PROGRESSIVE OVERLOAD:
 EXERCISE SELECTION PRINCIPLES:
 - Prioritize compound movements: Barbell Bench Press, Barbell Squat, Conventional/Sumo Deadlift, Overhead Press, Barbell/Dumbbell Rows, Pull-ups/Lat Pulldowns
 - Follow compounds with complementary isolation work
+- CRITICAL — prefer exercises that challenge muscles in STRETCHED/LENGTHENED positions (research shows significantly more growth):
+  * Triceps: ALWAYS include overhead extensions (28% more growth than pushdowns alone)
+  * Biceps: incline dumbbell curls or Bayesian cable curls (arm behind body = stretched long head)
+  * Hamstrings: SEATED leg curls over lying (55% more growth in research)
+  * Calves: STANDING calf raises over seated (12% vs 2% growth)
+  * Chest: deep stretch cable flyes or dumbbell flyes with full ROM
+  * Lats: overhead cable pullovers or lat pulldowns with full stretch at top
+- Use Stimulus-to-Fatigue Ratio (SFR): prefer machine/cable variations for volume accumulation (less fatiguing), save heavy barbell for strength days
+- Hit every muscle from multiple angles: chest needs flat + incline + fly pattern, back needs vertical pull + horizontal row + rear delt
 - Consider injury history — substitute movements that aggravate injuries
 - Consider equipment_available and gym_access
 - Every exercise must have a "notes" field with a 1-line explanation of why it serves the user's goal
+
+VOLUME TARGETS PER MUSCLE GROUP PER WEEK (sets):
+- Chest: 10-20 (MEV 6, MAV 12-18, MRV 22)
+- Back: 14-22 (MEV 10, MAV 14-22, MRV 25+)
+- Quads: 12-18 (MEV 8, MAV 12-18, MRV 20+)
+- Hamstrings: 10-16
+- Side Delts: 12-22 (recover fast, need high volume)
+- Rear Delts: 8-16
+- Front Delts: 0-8 direct (get indirect from pressing)
+- Biceps: 8-14
+- Triceps: 8-14 (get indirect from pressing)
+- Calves: 8-12
+- Abs/Core: 6-12
 
 EXERCISE DATA FORMAT (mandatory for every exercise):
 Each exercise object must contain:

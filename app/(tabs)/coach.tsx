@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { MessageCircle, Send, Sparkles } from 'lucide-react-native';
 import { colors, spacing, borderRadius, typography, withOpacity, shadows } from '@/constants/theme';
+import { sendCoachMessage } from '@/services/ai';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 interface Message {
@@ -89,7 +90,7 @@ export default function CoachTab() {
   }, []);
 
   const sendMessage = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
@@ -105,8 +106,30 @@ export default function CoachTab() {
       setIsTyping(true);
       scrollToBottom();
 
-      const response = getCoachResponse(trimmed);
-      setTimeout(() => {
+      // Try real AI via edge function, fall back to static responses
+      try {
+        const history = messages.map((m) => ({
+          role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.content,
+        }));
+
+        const aiResponse = await sendCoachMessage({
+          message: trimmed,
+          conversation_history: history,
+        });
+
+        const coachMsg: Message = {
+          id: `coach-${Date.now()}`,
+          role: 'coach',
+          content: aiResponse,
+          timestamp: Date.now(),
+        };
+        setIsTyping(false);
+        setMessages((prev) => [...prev, coachMsg]);
+        scrollToBottom();
+      } catch {
+        // Fallback to static responses
+        const response = getCoachResponse(trimmed);
         const coachMsg: Message = {
           id: `coach-${Date.now()}`,
           role: 'coach',
@@ -116,7 +139,7 @@ export default function CoachTab() {
         setIsTyping(false);
         setMessages((prev) => [...prev, coachMsg]);
         scrollToBottom();
-      }, 1500);
+      }
     },
     [scrollToBottom],
   );

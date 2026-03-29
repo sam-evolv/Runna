@@ -245,3 +245,53 @@ export async function getExerciseExplanation(request: ExerciseExplainerRequest):
     };
   }
 }
+
+// ─── Coach Chat ─────────────────────────────────────────────────────────────
+
+export interface CoachChatRequest {
+  message: string;
+  conversation_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  user_context?: {
+    name?: string;
+    goal_type?: string;
+    goal_subtype?: string;
+    fitness_level?: string;
+    current_week?: number;
+    total_weeks?: number;
+  };
+}
+
+export async function sendCoachMessage(request: CoachChatRequest): Promise<string> {
+  try {
+    const { data, error } = await supabase.functions.invoke('coach-chat', {
+      body: request,
+    });
+
+    if (error) {
+      console.log('[ai] Coach chat edge function error, using fallback');
+      return getCoachFallback(request.message);
+    }
+
+    return data?.response || getCoachFallback(request.message);
+  } catch {
+    return getCoachFallback(request.message);
+  }
+}
+
+function getCoachFallback(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('progress') || lower.includes('track'))
+    return "Based on your recent sessions, you're right on track. Your consistency this month has been excellent. Keep doing what you're doing — the results are compounding.";
+  if (lower.includes('tired') || lower.includes('fatigue'))
+    return "Fatigue is your body's signal to recover. I'd dial back today's intensity by 20% and focus on sleep tonight. Recovery is where gains happen — not in the gym.";
+  if (lower.includes('nutrition') || lower.includes('eat') || lower.includes('food'))
+    return "For your current training load: aim for 1.6-2.2g protein per kg bodyweight, eat within 60 min post-workout (3:1 carb-to-protein ratio), and stay hydrated at 35ml per kg bodyweight daily.";
+  if (lower.includes('sleep'))
+    return "Sleep is the #1 recovery tool. Aim for 7-9 hours, keep your room cool (18-20C), avoid screens 30 min before bed, and maintain consistent sleep/wake times. A 20-min pre-2pm nap can boost afternoon sessions.";
+  if (lower.includes('harder') || lower.includes('push') || lower.includes('intense'))
+    return "Love the energy. I'll bump up your next few sessions — expect higher volume, shorter rest periods, and progression on your main lifts. If it becomes unsustainable, just let me know.";
+  if (lower.includes('adjust') || lower.includes('plan') || lower.includes('change'))
+    return "I've reviewed your recent performance data. Your tempo pace has improved, so I'm bumping threshold work up slightly. The overall volume stays the same — just smarter distribution across the week.";
+  return "Good question. Based on your current training phase and goals, I'd recommend staying the course. Your body is adapting well and the progression is right where it should be. Trust the process — consistency is everything.";
+}
+
