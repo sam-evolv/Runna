@@ -402,6 +402,29 @@ RESPONSE FORMAT (strict JSON — no other output, keep under 4000 tokens):
 }`;
 }
 
+function repairJSON(text: string): string {
+  let s = text.trim();
+  // Remove markdown fences
+  s = s.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+  s = s.trim();
+  // Remove trailing commas before } or ]
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  // If JSON is truncated (more { than }), find the last complete top-level object
+  let braceCount = 0;
+  let lastValidEnd = -1;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '{') braceCount++;
+    if (s[i] === '}') {
+      braceCount--;
+      if (braceCount === 0) lastValidEnd = i;
+    }
+  }
+  if (braceCount > 0 && lastValidEnd > 0) {
+    s = s.substring(0, lastValidEnd + 1);
+  }
+  return s;
+}
+
 serve(async (req) => {
   // CORS
   if (req.method === 'OPTIONS') {
@@ -450,17 +473,28 @@ serve(async (req) => {
     const content = nvidiaResponse.choices[0]?.message?.content;
 
     if (!content) {
-      throw new Error('Empty response from Claude');
+      throw new Error('Empty response from AI');
     }
 
-    // Parse the JSON response (handle potential markdown wrapping)
-    let planJson = content;
-    if (planJson.includes('```json')) {
-      planJson = planJson.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    }
-    planJson = planJson.trim();
+    // Parse the JSON response with repair logic
+    const planJson = repairJSON(content);
 
-    const plan = JSON.parse(planJson);
+    let plan;
+    try {
+      plan = JSON.parse(planJson);
+    } catch (e) {
+      // Try more aggressive repair
+      const aggressive = planJson
+        .replace(/[\x00-\x1F\x7F]/g, ' ')  // Remove control characters
+        .replace(/,\s*,/g, ',')              // Remove double commas
+        .replace(/\{\s*,/g, '{')             // Remove leading commas in objects
+        .replace(/\[\s*,/g, '[');            // Remove leading commas in arrays
+      try {
+        plan = JSON.parse(aggressive);
+      } catch (e2) {
+        throw new Error('Failed to parse plan JSON: ' + (e2 as Error).message + '. Response length: ' + content.length);
+      }
+    }
 
     return new Response(JSON.stringify(plan), {
       headers: {
