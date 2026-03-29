@@ -122,28 +122,35 @@ SESSION STRUCTURE (mandatory):
 - Use supersets for accessories where time-efficient (note which exercises are supersetted)
 - Estimated realistic session duration: 45-60 minutes
 
-REP RANGES AND LOADING:
-- Hypertrophy focus: 8-15 reps per set, moderate weight
-- Strength focus: 3-6 reps per set, heavy weight
-- Endurance/pump accessories: 12-20 reps
+REP RANGE DISTRIBUTION (evidence-based from Schoenfeld, Israetel):
+- Distribute work across three bands: ~25% at 5-10 reps (heavy compounds), ~50% at 10-20 reps (hypertrophy sweet spot), ~25% at 20-30 reps (machines/isolation pump work)
+- Strength days: 3-6 reps on main compounds, 6-8 on secondary compounds, 8-10 on accessories
+- Hypertrophy days: 8-12 reps on compounds, 10-15 on isolation, 15-25+ on myo-reps/drop sets
+- The traditional "8-12 hypertrophy zone" is NOT uniquely optimal — similar growth occurs across 6-20 reps when taken close to failure (Schoenfeld 2021)
 - Base working weight off the user's 1RM data when available:
   * Hypertrophy sets: ~60-75% of 1RM
   * Strength sets: ~80-90% of 1RM
-  * Warm-up sets: ~40-60% of 1RM, ascending
-- If no 1RM data, use reasonable estimates based on current_level (beginner/intermediate/advanced) and bodyweight
+  * Warm-up ramp: bar x5 → 50% x5 → 70% x3 → 85% x1 → working sets
+- If no 1RM data, use reasonable estimates based on current_level and bodyweight
 
 RIR (Reps In Reserve) PROGRESSION ACROSS MESOCYCLE:
-- Week 1: 3-4 RIR (introductory volume, moderate effort)
+- Key principle: 1-3 RIR captures NEARLY ALL hypertrophic benefit while preserving volume capacity (Robinson et al. 2024, Refalo et al. 2024)
+- Training to absolute failure produces identical growth to 1-2 RIR but causes 54% repetition drop-off on subsequent sets vs 27% at 3 RIR
+- Reserve true failure (0 RIR) for LAST SET of isolation exercises only — never on heavy compounds
+- Week 1: 3-4 RIR on all working sets (introductory volume, moderate effort)
 - Week 2: 2-3 RIR (building intensity)
-- Week 3: 1-2 RIR (pushing toward failure)
-- Week 4: 0-1 RIR (overreaching, peak intensity)
-- Deload week: 4+ RIR (reduce volume by 40%, keep weight moderate, recover)
-- Express RIR as RPE where helpful: RIR 3 = RPE 7, RIR 2 = RPE 8, RIR 1 = RPE 9, RIR 0 = RPE 10
+- Week 3: 1-2 RIR (hard — approaching failure on final sets of isolation)
+- Week 4: 0-1 RIR (overreach — near failure on compounds, TO failure on isolation last sets)
+- Deload week: 4+ RIR, reduce sets by 40-60%, maintain same exercises at ~80% of peak weight
+- Express RIR as RPE: RIR 3 = RPE 7, RIR 2 = RPE 8, RIR 1 = RPE 9, RIR 0 = RPE 10
 
-REST PERIODS:
-- Compound lifts (squat, bench, deadlift, OHP, rows): 120-180 seconds between working sets
-- Isolation lifts (curls, lateral raises, flyes, extensions): 60-90 seconds
-- Supersetted accessories: 0 seconds between superset pair, 60-90 seconds after completing the pair
+REST PERIODS (evidence-based — Schoenfeld 2016: 3-min rest > 1-min for both hypertrophy AND strength):
+- Heavy compounds on strength days (squat, bench, deadlift): 3-5 minutes (preserves volume capacity)
+- Moderate compounds (rows, pulldowns, leg press): 2-3 minutes
+- Isolation exercises: 60-90 seconds
+- Agonist-antagonist supersets (e.g. curl/extension, bench/row): 0 seconds between pair, 90 seconds between rounds — reduces session time by 36-50% with no performance loss
+- Myo-reps: activation set of 12-20 reps, then mini-sets of 3-5 reps with 10-20 seconds rest — equivalent growth to 3 traditional sets in 70% less time
+- Drop sets: on LAST SET of isolation exercises — equivalent growth to traditional sets in less time (Fonseca 2023)
 - Warm-up sets: 60 seconds
 
 PROGRESSIVE OVERLOAD:
@@ -191,6 +198,21 @@ Each exercise object must contain:
   - "type": "warmup" | "working" | "drop" | "amrap"
   - "rest_seconds": number
   - "rpe": number (optional, 1-10 scale)
+
+INTENSIFICATION TECHNIQUES (use on hypertrophy days for time-efficiency):
+- Myo-reps: best for isolation exercises (leg extensions, lateral raises, calf raises). Format: "set_type": "myo_rep"
+- Drop sets: on final set of isolation exercises. Format: "set_type": "drop_set"
+- Agonist-antagonist supersets: pair opposing muscles (curl+extension, bench+row). Format: "superset_with": "exercise name"
+- These produce equivalent hypertrophy to straight sets in less time (Fonseca 2023 meta-analysis)
+- NEVER use intensification techniques on heavy compound main lifts
+
+REFERENCE PROGRAMME (adapt based on user's level, equipment, and goals):
+Day 1 — Upper Strength: Bench 4x4-6, Row 4x4-6, DB OHP 3x6-8, Weighted Chin-ups 3x6-8, Curl 2x8-10, Overhead Extension 2x8-10, Face Pulls 2x12-15 (~20 sets, 55-70 min)
+Day 2 — Lower Strength: Squat 4x4-6, RDL 3x6-8, Leg Press 3x8-10, Lying Leg Curl 3x8-10, Standing Calf Raise 4x8-12, Hanging Leg Raise 3x10-15 (~20 sets, 55-70 min)
+Day 3 — Upper Hypertrophy: Incline DB Press 3x8-12, Cable Row 3x10-12, DB Lateral Raise 3x12-15, Lat Pulldown 3x10-12, SS: DB Curl+Pushdown 3x10-12, Cable Fly 2x12-15, Myo-rep Rear Delt Fly (~22 sets, 50-65 min)
+Day 4 — Lower Hypertrophy: Hack Squat 3x8-12, Conv Deadlift 3x6-8, BSS 3x10-12/leg, Seated Leg Curl 3x10-12, Myo-rep Leg Ext, Drop-set Calf Raise 3x12-15, Cable Crunch 3x12-15 (~20 sets, 55-70 min)
+
+SESSION DURATION: 45-90 minutes is productive (the "60-minute cortisol rule" is a myth — West & Phillips 2012). Strength sessions with longer rests may run 60-70 min. Hypertrophy sessions with supersets can be 50-65 min.
 
 COOL-DOWN:
 - Include cool-down guidance in the workout notes: 5 min light cardio + static stretching for worked muscle groups`;
